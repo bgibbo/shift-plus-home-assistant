@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shift-plus-home-assistant"
+version = "0.1.0"
+description = "Home Assistant integration for Shift Plus"
+requires-python = ">=3.12"
+dependencies = [
+  "cryptography>=45.0.0",
+  "qrcode==8.2",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.26",
+  "ruff>=0.11",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

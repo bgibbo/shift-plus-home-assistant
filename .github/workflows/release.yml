@@ -1,0 +1,21 @@
+name: Release validation
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm manifest matches tag
+        shell: python
+        run: |
+          import json, os
+          version = json.load(open("custom_components/shift_plus/manifest.json"))["version"]
+          assert os.environ["GITHUB_REF_NAME"] == f"v{version}"

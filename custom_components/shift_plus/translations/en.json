@@ -1,0 +1,27 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Shift Plus is already configured."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)",
+          "name": "Name"
+        },
+        "description": "Configure the local Shift Plus synchronization service.",
+        "title": "Shift Plus"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)"
+        },
+        "description": "Pairing is disabled until the production verification key is configured."
+      }
+    }
+  }
+}
