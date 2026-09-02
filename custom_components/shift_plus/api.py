@@ -18,6 +18,7 @@ from .crypto import (
     EntitlementError,
     b64decode,
     endpoint_proof,
+    entitlement_is_active,
     verify_entitlement,
     verify_request_signature,
 )
@@ -64,6 +65,8 @@ def _authenticate(
     store: ShiftPlusStore,
     device_id: str,
     body: bytes,
+    *,
+    allow_expired: bool = False,
 ) -> dict[str, Any]:
     device = store.device(device_id)
     nonce = request.headers.get("X-Shift-Plus-Nonce", "")
@@ -78,7 +81,7 @@ def _authenticate(
         )
     ):
         raise web.HTTPUnauthorized(text="Invalid device authentication")
-    if datetime.fromisoformat(device["entitlement_expires_at"]) <= datetime.now(UTC):
+    if not allow_expired and not entitlement_is_active(device):
         raise web.HTTPForbidden(text="Premium entitlement expired")
     return device
 
@@ -148,6 +151,9 @@ class PairingCompleteView(HomeAssistantView):
                 app_public_key=app_public_key,
                 one_time_secret=secret,
                 entitlement_expires_at=expires_at,
+                entitlement_id=claims["entitlement_id"],
+                entitlement_issued_at=float(claims["iat"]),
+                entitlement_jti=claims["jti"],
             )
         except EntitlementError as err:
             raise web.HTTPForbidden(text=str(err)) from err
@@ -205,7 +211,7 @@ class EntitlementView(HomeAssistantView):
         runtime = _runtime(request, entry_id)
         store: ShiftPlusStore = runtime["store"]
         body, data = await _json(request)
-        device = _authenticate(request, store, device_id, body)
+        device = _authenticate(request, store, device_id, body, allow_expired=True)
         try:
             claims = verify_entitlement(
                 str(data["entitlement"]),
@@ -216,7 +222,13 @@ class EntitlementView(HomeAssistantView):
                 app_public_key=device["app_public_key"],
             )
             expires_at = _expires_at(claims)
-            await store.update_entitlement(device_id, expires_at)
+            await store.update_entitlement(
+                device_id,
+                expires_at,
+                entitlement_id=claims["entitlement_id"],
+                issued_at=float(claims["iat"]),
+                jti=claims["jti"],
+            )
         except EntitlementError as err:
             raise web.HTTPForbidden(text=str(err)) from err
         except (KeyError, TypeError, ValueError) as err:

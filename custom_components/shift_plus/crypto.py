@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -18,9 +19,35 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
 )
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from .const import (
+    ENTITLEMENT_AUDIENCE,
+    ENTITLEMENT_ISSUER,
+    ENTITLEMENT_PACKAGE,
+    ENTITLEMENT_PRODUCT,
+    ENTITLEMENT_TYPE,
+)
+
 
 class EntitlementError(ValueError):
     """Raised when a Premium entitlement cannot be trusted."""
+
+
+def entitlement_is_active(device: dict[str, Any], now: datetime | None = None) -> bool:
+    """Return whether synchronization may proceed for a paired device."""
+    current = now or datetime.now(UTC)
+    return datetime.fromisoformat(device["entitlement_expires_at"]) > current
+
+
+def validate_entitlement_renewal(
+    device: dict[str, Any], *, entitlement_id: str, issued_at: float
+) -> None:
+    """Reject identity swaps and stale/replayed renewal grants."""
+    # Devices paired before the production contract did not persist this field.
+    # Their first genuine renewal establishes it; subsequent identity swaps fail.
+    if device.get("entitlement_id") not in (None, entitlement_id):
+        raise EntitlementError("Entitlement identity changed")
+    if issued_at <= float(device.get("entitlement_issued_at", 0)):
+        raise EntitlementError("Entitlement renewal is stale or replayed")
 
 
 def b64encode(value: bytes) -> str:
@@ -83,7 +110,7 @@ def verify_entitlement(
     device_id: str,
     app_public_key: str,
 ) -> dict[str, Any]:
-    """Verify a compact `payload.signature` Ed25519 entitlement.
+    """Verify a compact EdDSA JWS Premium entitlement.
 
     The signature covers the ASCII base64url payload segment. The JSON payload
     must bind the grant to the HA entry, pairing session, device and app key.
@@ -91,15 +118,26 @@ def verify_entitlement(
     if not public_key:
         raise EntitlementError("Premium entitlement verification is not configured")
     try:
-        payload_segment, signature_segment = token.split(".", 1)
+        header_segment, payload_segment, signature_segment = token.split(".")
+        header = json.loads(b64decode(header_segment))
+        if header.get("alg") != "EdDSA" or header.get("typ") != "JWT":
+            raise ValueError("Unsupported entitlement header")
         Ed25519PublicKey.from_public_bytes(b64decode(public_key)).verify(
-            b64decode(signature_segment), payload_segment.encode()
+            b64decode(signature_segment),
+            f"{header_segment}.{payload_segment}".encode(),
         )
         claims = json.loads(b64decode(payload_segment))
     except (ValueError, TypeError, json.JSONDecodeError, InvalidSignature) as err:
         raise EntitlementError("Invalid Premium entitlement") from err
 
     required = {
+        "iss": ENTITLEMENT_ISSUER,
+        "aud": ENTITLEMENT_AUDIENCE,
+        "package_name": ENTITLEMENT_PACKAGE,
+        "product_id": ENTITLEMENT_PRODUCT,
+        "entitlement": ENTITLEMENT_TYPE,
+        "status": "active",
+        "token_use": "ha_pairing",
         "ha_instance_id": entry_id,
         "pairing_session_id": session_id,
         "device_id": device_id,
@@ -107,6 +145,18 @@ def verify_entitlement(
     }
     if any(claims.get(name) != value for name, value in required.items()):
         raise EntitlementError("Premium entitlement is bound to another pairing")
-    if not isinstance(claims.get("exp"), (int, float)) or claims["exp"] <= time.time():
+    now = time.time()
+    numeric_dates = ("iat", "nbf", "exp")
+    if any(not isinstance(claims.get(name), (int, float)) for name in numeric_dates):
+        raise EntitlementError("Premium entitlement has invalid dates")
+    if claims["iat"] > now + 60 or claims["nbf"] > now + 60:
+        raise EntitlementError("Premium entitlement is not yet valid")
+    if claims["exp"] <= now or claims["exp"] <= claims["iat"]:
         raise EntitlementError("Premium entitlement has expired")
+    identity_fields = ("entitlement_id", "purchase_id_hash", "installation_id", "jti")
+    if any(
+        not isinstance(claims.get(name), str) or not claims[name]
+        for name in identity_fields
+    ):
+        raise EntitlementError("Premium entitlement identity is incomplete")
     return claims

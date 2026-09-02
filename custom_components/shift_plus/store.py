@@ -15,7 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import MAX_OPERATIONS, PAIRING_TTL_SECONDS, STORE_KEY_PREFIX, STORE_VERSION
-from .crypto import b64decode, b64encode, derive_credential
+from .crypto import (
+    b64decode,
+    b64encode,
+    derive_credential,
+    validate_entitlement_renewal,
+)
 
 
 class ShiftPlusStore:
@@ -93,6 +98,9 @@ class ShiftPlusStore:
         app_public_key: str,
         one_time_secret: str,
         entitlement_expires_at: datetime,
+        entitlement_id: str,
+        entitlement_issued_at: float,
+        entitlement_jti: str,
     ) -> None:
         """Persist a paired device and its derived credential."""
         credential = derive_credential(
@@ -107,6 +115,9 @@ class ShiftPlusStore:
                 "app_public_key": app_public_key,
                 "credential": b64encode(credential),
                 "entitlement_expires_at": entitlement_expires_at.isoformat(),
+                "entitlement_id": entitlement_id,
+                "entitlement_issued_at": entitlement_issued_at,
+                "entitlement_jti": entitlement_jti,
             }
             await self._store.async_save(self.data)
 
@@ -166,11 +177,24 @@ class ShiftPlusStore:
             "server_cursor": self.data["cursor"],
         }
 
-    async def update_entitlement(self, device_id: str, expires_at: datetime) -> None:
+    async def update_entitlement(
+        self,
+        device_id: str,
+        expires_at: datetime,
+        *,
+        entitlement_id: str,
+        issued_at: float,
+        jti: str,
+    ) -> None:
         async with self._lock:
-            self.data["devices"][device_id]["entitlement_expires_at"] = (
-                expires_at.isoformat()
+            device = self.data["devices"][device_id]
+            validate_entitlement_renewal(
+                device, entitlement_id=entitlement_id, issued_at=issued_at
             )
+            device["entitlement_expires_at"] = expires_at.isoformat()
+            device["entitlement_id"] = entitlement_id
+            device["entitlement_issued_at"] = issued_at
+            device["entitlement_jti"] = jti
             await self._store.async_save(self.data)
 
     async def revoke(self, device_id: str) -> None:

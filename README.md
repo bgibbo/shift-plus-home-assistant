@@ -9,8 +9,8 @@ HKDF-SHA256 credential derivation and HMAC-SHA256 authenticated requests.
 
 > [!WARNING]
 > This repository is not ready for public installation. The production Premium
-> entitlement token contract and Ed25519 public verification key must be
-> finalized and tested end to end before release.
+> entitlement backend and Ed25519 public verification key must be deployed and
+> tested end to end before release.
 
 ## Current capabilities
 

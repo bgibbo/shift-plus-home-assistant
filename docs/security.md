@@ -12,7 +12,7 @@ data or configuration secrets.
 
 ## Before public release
 
-- Finalize and document the production entitlement token encoding.
+- Deploy the private entitlement backend and map its production HTTPS hostname.
 - Insert the production Ed25519 **public** key through a safe release mechanism.
 - Verify entitlement issuance, pairing, renewal and expiry against the real app.
 - Exercise pairing and sync against supported Home Assistant versions.

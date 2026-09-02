@@ -35,14 +35,23 @@ the replay window.
 
 ## Entitlements
 
-The integration currently specifies a compact token as
-`base64url(JSON claims).base64url(Ed25519 signature)`, where the signature covers
-the ASCII payload segment. Claims bind the token to `ha_instance_id`,
-`pairing_session_id`, `device_id`, `app_public_key`, and numeric UTC `exp`.
+The issuer returns compact JWS using Ed25519 (`alg=EdDSA`, `typ=JWT`):
+`base64url(header).base64url(claims).base64url(signature)`. The signature covers
+the two encoded segments and separator. The app treats this value as opaque.
 
-This encoding must be reconciled with the production entitlement issuer before
-release. The Flutter project currently treats the token as opaque and does not
-contain the issuer contract or verification key.
+The verifier requires the fixed Shift Plus issuer, Home Assistant audience,
+Android package and Premium product IDs; `entitlement=premium`, `status=active`,
+and `token_use=ha_pairing`; numeric `iat`, `nbf`, and `exp`; stable
+`entitlement_id`, hashed purchase identity, installation ID and unique `jti`;
+and exact HA entry, pairing session, device, and app X25519 public-key bindings.
+Tokens live for 24 hours. A cancellation, refund, or revocation prevents the
+backend issuing the next token, so synchronization stops no later than expiry.
+
+Renewal uses `pairing_session_id=renew:<device_id>` and the established HMAC
+credential. Home Assistant accepts only the same entitlement identity with a
+strictly newer issue time, preventing identity swaps and token replay. The
+Ed25519 private key exists only in the entitlement backend; the integration is
+configured with the public verification key and fails closed without it.
 
 ## Synchronization
 
