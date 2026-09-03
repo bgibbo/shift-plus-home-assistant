@@ -1,6 +1,6 @@
 {
   "domain": "shift_plus",
-  "name": "Shift Plus",
+  "name": "Shift +",
   "codeowners": ["@bgibbo"],
   "config_flow": true,
   "dependencies": ["http"],
@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/bgibbo/shift-plus-home-assistant/issues",
   "requirements": ["qrcode==8.2"],
   "single_config_entry": true,
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

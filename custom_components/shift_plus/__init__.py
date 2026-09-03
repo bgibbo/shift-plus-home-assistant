@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from homeassistant.components import persistent_notification
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -16,6 +19,16 @@ from .store import ShiftPlusStore
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register API views once."""
     hass.data.setdefault(DOMAIN, {})
+    frontend_path = Path(__file__).parent / "frontend" / "shift-plus-roster-card.js"
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                "/shift_plus/shift-plus-roster-card.js",
+                str(frontend_path),
+                cache_headers=True,
+            )
+        ]
+    )
     for view in VIEWS:
         hass.http.register_view(view)
     return True
@@ -36,9 +49,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         persistent_notification.async_create(
             hass,
             f"Open [{pairing_url}]({pairing_url}) while signed in to Home Assistant, "
-            "then scan the displayed QR in Shift Plus. "
+            "then scan the displayed QR in Shift +. "
             "The QR expires after five minutes.",
-            title="Pair Shift Plus",
+            title="Pair Shift +",
             notification_id=f"shift_plus_pairing_{entry.entry_id}",
         )
 

@@ -1,0 +1,49 @@
+title: Shift +
+views:
+  - title: Shift +
+    path: shift-plus
+    icon: mdi:calendar-account
+    badges: []
+    cards:
+      - type: markdown
+        content: |
+          # Shift +
+          **{{ now().strftime('%A %-d %B %Y') }}**
+
+          Your Android roster companion. Duty-by-day information will appear
+          here when that data becomes available in the synchronization protocol.
+      - type: entities
+        title: Roster and synchronization
+        show_header_toggle: false
+        entities:
+          - entity: sensor.shift_active_roster
+            name: Active roster
+          - entity: sensor.shift_paired_devices
+            name: Paired devices
+          - entity: sensor.shift_calendar
+            name: Calendar records
+      - type: glance
+        title: Leave and overtime
+        show_name: true
+        show_state: true
+        entities:
+          - entity: sensor.shift_annual_leave
+            name: Annual leave
+          - entity: sensor.shift_overtime
+            name: Overtime
+      - type: markdown
+        title: Next annual leave
+        content: |
+          {% set next_leave = state_attr('sensor.shift_annual_leave', 'next_date') %}
+          {% if next_leave %}
+          Your next synchronized annual-leave day begins **{{ next_leave }}**.
+          {% else %}
+          No upcoming annual leave is currently synchronized.
+          {% endif %}
+      - type: history-graph
+        title: Shift + activity
+        hours_to_show: 168
+        entities:
+          - sensor.shift_paired_devices
+          - sensor.shift_overtime
+

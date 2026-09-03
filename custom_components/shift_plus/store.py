@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 import uuid
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -34,6 +35,7 @@ class ShiftPlusStore:
         self._lock = asyncio.Lock()
         self._sessions: dict[str, dict[str, Any]] = {}
         self._seen_nonces: dict[str, dict[str, datetime]] = {}
+        self._listeners: set[Callable[[], None]] = set()
         self.data: dict[str, Any] = {}
 
     async def async_load(self) -> None:
@@ -120,9 +122,19 @@ class ShiftPlusStore:
                 "entitlement_jti": entitlement_jti,
             }
             await self._store.async_save(self.data)
+        self._notify()
 
     def device(self, device_id: str) -> dict[str, Any] | None:
         return self.data["devices"].get(device_id)
+
+    def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        """Notify entities when synchronized state changes."""
+        self._listeners.add(listener)
+        return lambda: self._listeners.discard(listener)
+
+    def _notify(self) -> None:
+        for listener in tuple(self._listeners):
+            listener()
 
     def accept_nonce(self, device_id: str, nonce: str) -> bool:
         """Reject replayed nonces while bounding memory use."""
@@ -171,6 +183,7 @@ class ShiftPlusStore:
                 if item["cursor"] > cursor
             ][:MAX_OPERATIONS]
             await self._store.async_save(self.data)
+        self._notify()
         return {
             "outcomes": outcomes,
             "changes": changes,
@@ -196,12 +209,14 @@ class ShiftPlusStore:
             device["entitlement_issued_at"] = issued_at
             device["entitlement_jti"] = jti
             await self._store.async_save(self.data)
+        self._notify()
 
     async def revoke(self, device_id: str) -> None:
         async with self._lock:
             self.data["devices"].pop(device_id, None)
             self._seen_nonces.pop(device_id, None)
             await self._store.async_save(self.data)
+        self._notify()
 
     @staticmethod
     def _validate_record(record: dict[str, Any]) -> None:

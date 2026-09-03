@@ -109,12 +109,12 @@ class PairingPageView(HomeAssistantView):
         html = (
             "<!doctype html><html><head>"
             '<meta name="viewport" content="width=device-width">'
-            "<title>Pair Shift Plus</title><style>"
+            "<title>Pair Shift +</title><style>"
             "body{font-family:sans-serif;text-align:center;margin:2rem}"
             "img{width:min(80vw,420px);image-rendering:pixelated}"
-            "</style></head><body><h1>Pair Shift Plus</h1>"
-            "<p>In Shift Plus, open Home Assistant and scan this code.</p>"
-            f'<img alt="Shift Plus pairing QR" src="{data_uri}">'
+            "</style></head><body><h1>Pair Shift +</h1>"
+            "<p>In Shift +, open Home Assistant and scan this code.</p>"
+            f'<img alt="Shift + pairing QR" src="{data_uri}">'
             "<p>This code expires in five minutes.</p></body></html>"
         )
         return web.Response(text=html, content_type="text/html")

@@ -1,7 +1,7 @@
 {
   "config": {
     "abort": {
-      "already_configured": "Shift Plus is already configured."
+      "already_configured": "Shift + is already configured."
     },
     "step": {
       "user": {
@@ -9,8 +9,8 @@
           "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)",
           "name": "Name"
         },
-        "description": "Configure the local Shift Plus synchronization service.",
-        "title": "Shift Plus"
+        "description": "Configure the local Shift + synchronization service.",
+        "title": "Shift +"
       }
     }
   },

@@ -1,4 +1,4 @@
-# Shift Plus synchronization protocol v1
+# Shift + synchronization protocol v1
 
 All JSON is UTF-8. Binary values use unpadded URL-safe base64.
 
@@ -39,7 +39,7 @@ The issuer returns compact JWS using Ed25519 (`alg=EdDSA`, `typ=JWT`):
 `base64url(header).base64url(claims).base64url(signature)`. The signature covers
 the two encoded segments and separator. The app treats this value as opaque.
 
-The verifier requires the fixed Shift Plus issuer, Home Assistant audience,
+The verifier requires the fixed Shift + issuer, Home Assistant audience,
 Android package and Premium product IDs; `entitlement=premium`, `status=active`,
 and `token_use=ha_pairing`; numeric `iat`, `nbf`, and `exp`; stable
 `entitlement_id`, hashed purchase identity, installation ID and unique `jti`;

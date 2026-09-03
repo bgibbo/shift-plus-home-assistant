@@ -1,0 +1,63 @@
+# Copy and adapt these examples in Settings > Automations & scenes.
+
+- alias: Shift + annual leave begins tomorrow
+  description: Notify when the next synchronized leave day is tomorrow.
+  triggers:
+    - trigger: time
+      at: "18:00:00"
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ state_attr('sensor.shift_annual_leave', 'next_date') ==
+           (now().date() + timedelta(days=1)).isoformat() }}
+  actions:
+    - action: notify.notify
+      data:
+        title: Shift +
+        message: Annual leave begins tomorrow.
+
+- alias: Shift + sync needs attention
+  description: Notify if no Premium-authorized phone remains paired.
+  triggers:
+    - trigger: state
+      entity_id: sensor.shift_paired_devices
+      attribute: sync_status
+      to: "not_paired"
+      for: "00:10:00"
+  actions:
+    - action: notify.notify
+      data:
+        title: Shift + synchronization
+        message: Open Shift + on Android and check Home Assistant pairing.
+
+- alias: Shift + overtime recorded
+  description: Notify when the synchronized overtime total increases.
+  triggers:
+    - trigger: state
+      entity_id: sensor.shift_overtime
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ trigger.from_state is not none and
+           trigger.to_state.state | float(0) > trigger.from_state.state | float(0) }}
+  actions:
+    - action: notify.notify
+      data:
+        title: Shift + overtime
+        message: >-
+          Your synchronized overtime total is now
+          {{ states('sensor.shift_overtime') }} hours.
+
+- alias: Shift + leave-day morning
+  description: Use a gentler lighting scene on a synchronized leave day.
+  triggers:
+    - trigger: time
+      at: "07:00:00"
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ state_attr('sensor.shift_annual_leave', 'today') | bool(false) }}
+  actions:
+    - action: scene.turn_on
+      target:
+        entity_id: scene.gentle_morning

@@ -1,8 +1,8 @@
 """Constants for the Shift Plus integration."""
 
 DOMAIN = "shift_plus"
-NAME = "Shift Plus"
-VERSION = "0.1.0"
+NAME = "Shift +"
+VERSION = "0.2.0"
 
 CONF_ENTITLEMENT_PUBLIC_KEY = "entitlement_public_key"
 CONF_NAME = "name"

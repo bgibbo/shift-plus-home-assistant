@@ -1,62 +1,167 @@
-# Shift Plus for Home Assistant
+# Shift + for Home Assistant
 
-Private pre-release development repository for the official Home Assistant
-counterpart to the Shift Plus Android app.
+<p align="center">
+  <img src="docs/images/shift-plus-icon.png" width="160" alt="Shift + icon">
+</p>
 
-The integration provides local, bidirectional synchronization of supported
-Shift Plus records. Pairing uses a short-lived QR code, X25519 key agreement,
-HKDF-SHA256 credential derivation and HMAC-SHA256 authenticated requests.
+Bring your Shift + roster into Home Assistant.
 
-> [!WARNING]
-> This repository is not ready for public installation. The production Premium
-> entitlement backend and Ed25519 public verification key must be deployed and
-> tested end to end before release.
+View synchronized roster configuration, annual leave, overtime and connection
+status from a dedicated Shift + dashboard, and use that information in Home
+Assistant automations. Shift + is primarily an Android shift-roster app; this is
+its official Home Assistant companion integration.
 
-## Current capabilities
+> **Development status:** this repository is currently private and has not been
+> released or submitted to HACS. The instructions below describe the intended
+> user experience and private testing workflow. Do not treat it as publicly
+> available software yet.
 
-- Home Assistant UI configuration flow.
-- Authenticated, five-minute QR pairing page.
-- X25519/HKDF device credential establishment.
-- Replay-resistant HMAC authentication.
-- Persistent device and operation-log storage.
-- Vector-clock merge of annual-leave and overtime records.
-- Incremental synchronization cursors and idempotent operation acknowledgements.
-- Premium entitlement refresh and self-revocation endpoints.
-- Proof-of-identity endpoint for alternative Home Assistant URLs.
-- Status sensor and `shift_plus.create_pairing` action.
+## What is Shift +?
 
-## Development installation
+Shift + is an Android application for planning rotating rosters, viewing daily
+duties, recording annual leave and tracking overtime. The Android app remains the
+source of truth for roster setup and phone-side editing.
 
-Do not install this pre-release on a production Home Assistant system.
+## What does the integration do?
 
-1. Copy `custom_components/shift_plus` into the Home Assistant `custom_components`
-   directory.
-2. Restart Home Assistant.
-3. Open **Settings → Devices & services → Add integration**, then select
-   **Shift Plus**.
-4. Configure the entitlement verification public key.
-5. Run the `shift_plus.create_pairing` action and open the link in the resulting
-   notification while signed in to Home Assistant.
-6. Scan the displayed QR from the Home Assistant screen in Shift Plus.
+The integration pairs locally with the Android app, receives supported Shift +
+records, and exposes dashboard-safe Home Assistant sensors. Synchronization is
+incremental and bidirectional for supported records. Device requests are
+authenticated and pairing requires a genuine Shift + Premium entitlement.
 
-## Security
+The current protocol supplies active roster/unit identifiers, annual leave and
+overtime. Computed daily E/L/N/R duties are not yet transferred, so the project
+does not claim to expose today's or the next duty until that protocol work is
+complete.
 
-- Pairing secrets live for five minutes and are single use.
-- Per-device credentials are derived locally and never appear in the QR.
-- Sync, renewal and revocation requests are signed over the exact request body.
-- Replayed nonces are rejected.
-- Alternative endpoints must prove possession of the paired credential.
-- Pairing fails closed when the entitlement verification key is absent.
+## Screenshots
 
-See [Security](docs/security.md) and [Protocol](docs/protocol.md).
+Final release screenshots are awaiting the sanitized end-to-end Home Assistant
+test. The planned Android roster, Home Assistant dashboard, roster-card and
+pairing images are tracked in [`docs/images`](docs/images/README.md). No mock or
+fabricated product screenshots are used.
 
-## HACS release status
+## Features
 
-The directory structure follows HACS custom-integration requirements, and CI
-includes HACS and Hassfest validation. HACS requires the repository to be public
-before it can be installed. This repository will remain private until the
-maintainer explicitly approves release.
+- Guided, five-minute QR pairing from an authenticated Home Assistant page
+- X25519/HKDF device credential establishment
+- Replay-resistant HMAC authentication for sync requests
+- Signed Premium entitlement verification using only the public Ed25519 key
+- Active roster and unit sensor
+- Annual-leave and overtime sensors
+- Sanitized monthly calendar event data
+- Pairing, sync and Premium-status sensor without entitlement details
+- Built-in-card dashboard for maximum compatibility
+- Responsive, dependency-free Shift + monthly roster card
+- Light and dark Home Assistant theme support
+- Incremental synchronization and deterministic conflict handling
 
-## License
+## Requirements
 
-MIT
+- Home Assistant with support for custom integrations
+- Shift + installed on Android
+- Shift + Premium purchased through Google Play
+- A network route from the Android device to Home Assistant
+- The production entitlement service and verification key configured
+
+## Intended installation journey
+
+1. Install Shift + on Android.
+2. Set up your roster in Shift +.
+3. Install **Shift + for Home Assistant** through HACS once it is publicly
+   released. Private testers must install the integration manually.
+4. Add the Shift + integration under **Settings → Devices & services**.
+5. Complete pairing from the Android app.
+6. Add the supplied Shift + dashboard to the Home Assistant sidebar.
+7. Optionally use Shift + entities in automations.
+
+### Private development installation
+
+Copy `custom_components/shift_plus` into Home Assistant's `custom_components`
+directory and restart Home Assistant. Add **Shift +** under **Settings → Devices
+& services** and enter the production entitlement public verification key. This
+manual route is only for authorized private testing.
+
+## Pairing
+
+1. In Home Assistant, run the `shift_plus.create_pairing` action.
+2. Open the resulting persistent notification while signed in.
+3. In Shift + on Android, open **Home Assistant** and scan the QR code.
+4. The QR expires after five minutes and can be used only once.
+
+Pairing is a Shift + Premium feature. The app verifies the Google Play purchase
+with the private entitlement backend. Home Assistant independently verifies the
+short-lived, pairing-bound entitlement signature and claims.
+
+## Shift + dashboard
+
+Two ready-made configurations are included:
+
+- [`lovelace/shift-plus-dashboard.yaml`](lovelace/shift-plus-dashboard.yaml)
+  uses built-in Home Assistant cards only.
+- [`lovelace/shift-plus-custom-card-dashboard.yaml`](lovelace/shift-plus-custom-card-dashboard.yaml)
+  uses the supplied Shift + roster card for a more app-like monthly view.
+
+See the [dashboard guide](docs/dashboard.md) for sidebar and resource setup.
+
+## Available entities
+
+The integration creates paired-device, active-roster, calendar, annual-leave and
+overtime sensors. See the complete [entity inventory](docs/entities.md) for
+states, attributes, availability, dashboard use and automation suitability.
+
+Entity output deliberately excludes purchase and entitlement tokens, device
+credentials, pairing secrets, record IDs, free-text notes and cryptographic
+material.
+
+## Example automations
+
+[`docs/automations.yaml`](docs/automations.yaml) includes examples for:
+
+- an annual-leave reminder;
+- synchronization attention;
+- an increased overtime total; and
+- alternate morning behaviour on a leave day.
+
+Duty-specific Early/Late/Night/Rest examples will be added only when computed
+daily duty entities genuinely exist.
+
+## Troubleshooting
+
+- **No entities:** restart Home Assistant after copying the integration and
+  confirm the config entry loaded successfully.
+- **Pairing unavailable:** configure the entitlement public key and confirm
+  Shift + Premium is active in the Android app.
+- **QR rejected:** create a new pairing notification; codes expire after five
+  minutes and are single use.
+- **Calendar empty:** open Shift + and synchronize. Only leave and overtime are
+  currently available as dated calendar events.
+- **Custom card missing:** add its JavaScript-module resource and hard-refresh
+  the browser as described in the dashboard guide.
+- **Sync stopped:** check the paired-device sensor and restore the Google Play
+  purchase in Shift +. Expired or revoked entitlement prevents synchronization.
+
+## Privacy and security
+
+Shift + data remains between the paired Android app and Home Assistant during
+normal synchronization. The entitlement backend receives the Google Play
+purchase proof and pairing bindings needed to issue a short-lived entitlement.
+
+The repository contains no private signing key, Google credential, purchase
+token, HMAC credential or production secret. See the [security model](docs/security.md)
+and [protocol](docs/protocol.md) for technical details.
+
+## Current release status
+
+This is private release-preparation work. Before any public release it still
+requires real-device entitlement testing, fresh-user/fresh-Home-Assistant
+testing, duty-data protocol completion, sanitized screenshots, supported-version
+testing, Hassfest/HACS validation and explicit maintainer approval.
+
+No public HACS submission or tagged release exists.
+
+## Development
+
+Contributor setup and validation commands are documented in
+[`docs/development.md`](docs/development.md). The project is licensed under the
+[MIT License](LICENSE).

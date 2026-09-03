@@ -1,3 +1,3 @@
 create_pairing:
   name: Create pairing QR
-  description: Creates a notification containing the authenticated Shift Plus pairing page.
+  description: Creates a notification containing the authenticated Shift + pairing page.
