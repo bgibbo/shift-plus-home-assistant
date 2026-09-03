@@ -13,7 +13,12 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import get_url
 
-from .const import CONF_ENTITLEMENT_PUBLIC_KEY, DOMAIN, ENTITLEMENT_MAX_SECONDS
+from .const import (
+    CONF_ENTITLEMENT_PUBLIC_KEY,
+    DOMAIN,
+    ENTITLEMENT_MAX_SECONDS,
+    PRODUCTION_ENTITLEMENT_PUBLIC_KEY,
+)
 from .crypto import (
     EntitlementError,
     b64decode,
@@ -48,10 +53,15 @@ async def _json(request: web.Request) -> tuple[bytes, dict[str, Any]]:
 
 def _verification_key(runtime: dict[str, Any]) -> str:
     entry = runtime["entry"]
-    return entry.options.get(
-        CONF_ENTITLEMENT_PUBLIC_KEY,
-        entry.data.get(CONF_ENTITLEMENT_PUBLIC_KEY, ""),
-    ).strip()
+    return (
+        entry.options.get(
+            CONF_ENTITLEMENT_PUBLIC_KEY,
+            entry.data.get(
+                CONF_ENTITLEMENT_PUBLIC_KEY, PRODUCTION_ENTITLEMENT_PUBLIC_KEY
+            ),
+        ).strip()
+        or PRODUCTION_ENTITLEMENT_PUBLIC_KEY
+    )
 
 
 def _expires_at(claims: dict[str, Any]) -> datetime:

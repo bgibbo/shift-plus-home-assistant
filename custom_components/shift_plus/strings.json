@@ -20,7 +20,7 @@
         "data": {
           "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)"
         },
-        "description": "Pairing is disabled until the production verification key is configured."
+        "description": "The bundled production verification key may be overridden here for controlled key rotation."
       }
     }
   }

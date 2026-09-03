@@ -62,7 +62,7 @@ fabricated product screenshots are used.
 - Shift + installed on Android
 - Shift + Premium purchased through Google Play
 - A network route from the Android device to Home Assistant
-- The production entitlement service and verification key configured
+- The production entitlement service available
 
 ## Intended installation journey
 
@@ -79,8 +79,9 @@ fabricated product screenshots are used.
 
 Copy `custom_components/shift_plus` into Home Assistant's `custom_components`
 directory and restart Home Assistant. Add **Shift +** under **Settings → Devices
-& services** and enter the production entitlement public verification key. This
-manual route is only for authorized private testing.
+& services**. The production entitlement public verification key is bundled;
+the options field exists only to support controlled key rotation. This manual
+route is only for authorized private testing.
 
 ## Pairing
 

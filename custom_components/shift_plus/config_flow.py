@@ -8,7 +8,13 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import CONF_ENTITLEMENT_PUBLIC_KEY, CONF_NAME, DOMAIN, NAME
+from .const import (
+    CONF_ENTITLEMENT_PUBLIC_KEY,
+    CONF_NAME,
+    DOMAIN,
+    NAME,
+    PRODUCTION_ENTITLEMENT_PUBLIC_KEY,
+)
 
 
 class ShiftPlusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -28,7 +34,8 @@ class ShiftPlusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={
                     CONF_NAME: user_input[CONF_NAME],
                     CONF_ENTITLEMENT_PUBLIC_KEY: user_input.get(
-                        CONF_ENTITLEMENT_PUBLIC_KEY, ""
+                        CONF_ENTITLEMENT_PUBLIC_KEY,
+                        PRODUCTION_ENTITLEMENT_PUBLIC_KEY,
                     ).strip(),
                 },
             )
@@ -38,7 +45,10 @@ class ShiftPlusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME, default=NAME): str,
-                    vol.Optional(CONF_ENTITLEMENT_PUBLIC_KEY, default=""): str,
+                    vol.Optional(
+                        CONF_ENTITLEMENT_PUBLIC_KEY,
+                        default=PRODUCTION_ENTITLEMENT_PUBLIC_KEY,
+                    ): str,
                 }
             ),
         )
@@ -66,7 +76,9 @@ class ShiftPlusOptionsFlow(config_entries.OptionsFlow):
 
         current = self._entry.options.get(
             CONF_ENTITLEMENT_PUBLIC_KEY,
-            self._entry.data.get(CONF_ENTITLEMENT_PUBLIC_KEY, ""),
+            self._entry.data.get(
+                CONF_ENTITLEMENT_PUBLIC_KEY, PRODUCTION_ENTITLEMENT_PUBLIC_KEY
+            ),
         )
         return self.async_show_form(
             step_id="init",

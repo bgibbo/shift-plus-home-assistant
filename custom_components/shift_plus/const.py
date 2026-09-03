@@ -7,6 +7,10 @@ VERSION = "0.2.0"
 CONF_ENTITLEMENT_PUBLIC_KEY = "entitlement_public_key"
 CONF_NAME = "name"
 
+# Public verification material only. The corresponding Ed25519 private key is
+# held by Google Secret Manager and is never distributed with this integration.
+PRODUCTION_ENTITLEMENT_PUBLIC_KEY = "s3tuQBypQYaaTeWUl24mz6DVQeGeQOgFKYlp3kBU7R4"
+
 ENTITLEMENT_ISSUER = "https://entitlements.shiftplus.ie"
 ENTITLEMENT_AUDIENCE = "shift-plus-home-assistant"
 ENTITLEMENT_PACKAGE = "ie.shiftplus.app"
