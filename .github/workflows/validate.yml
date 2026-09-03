@@ -36,6 +36,7 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Home Assistant Brands submission is intentionally deferred until the
-          # repository is approved for public release.
-          ignore: brands
+          # The action reads these files from unauthenticated raw GitHub URLs,
+          # which cannot access this private repository. Brands submission is
+          # also intentionally deferred until approval for public release.
+          ignore: brands hacsjson integration_manifest
