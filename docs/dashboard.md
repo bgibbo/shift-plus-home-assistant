@@ -4,6 +4,17 @@ The repository includes two dashboard choices. Entity IDs are user-editable in
 Home Assistant, so confirm them under **Settings → Devices & services →
 Entities** before pasting either example.
 
+## What the examples show
+
+| Example | Included views |
+|---|---|
+| Built-in cards | Active roster ID, paired-device and sync status, calendar-record count, annual-leave and overtime totals, next leave date and recent activity |
+| Shift + roster card | A responsive monthly calendar of synchronized annual-leave and overtime events, plus roster, connection and summary information |
+
+Version 5.0.1 does not supply computed daily duties to Home Assistant. Current
+Shift, Next Shift and book-on/book-off information remain Android-app features.
+The dashboard examples therefore do not claim or simulate those entities.
+
 ## Built-in Home Assistant dashboard
 
 [`lovelace/shift-plus-dashboard.yaml`](../lovelace/shift-plus-dashboard.yaml)
@@ -35,14 +46,12 @@ After installing and restarting the integration:
 
 The card is responsive, uses Home Assistant theme variables, highlights today,
 and presents annual leave and overtime on a monthly grid. It safely handles
-missing or unavailable entities. E/L/N/R colours and day-detail support are
-already present, but computed daily duties are deliberately not displayed until
-the Android synchronization protocol supplies those records.
+missing or unavailable entities. Its code can render duty categories, but
+version 5.0.1 deliberately provides no daily-duty data to the card.
 
-Colour mapping:
+## Screenshot preview
 
-- Early (E): green
-- Late (L): light blue
-- Night (N): dark blue
-- Rest (R): red
-
+A genuine sanitized dashboard screenshot will be added after capture from a
+real installation. Follow the [screenshot checklist](images/README.md) so the
+image contains no personal roster data, internal URLs, entity identifiers or
+pairing credentials.

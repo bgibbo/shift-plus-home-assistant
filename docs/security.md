@@ -19,7 +19,7 @@ data or configuration secrets.
 - Exercise pairing and sync against supported Home Assistant versions.
 - Complete an independent protocol/security review.
 - Pass unit tests, Ruff, HACS validation and Hassfest.
-- Add Home Assistant Brands assets or document the temporary HACS brands check.
+- Keep the bundled integration brand assets current.
 - Create a signed/tagged GitHub release only after approval.
 
 The Ed25519 private signing key belongs only in the entitlement service and must

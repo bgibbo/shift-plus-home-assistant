@@ -23,3 +23,6 @@ there are no truthful **today's duty**, **next duty**, or **upcoming duties**
 entities yet. The card visibly reports that boundary and is ready to consume a
 future sanitized `days` attribute without changing its visual design.
 
+Current Shift, Next Shift and book-on/book-off information displayed in the
+Shift + Android app is calculated and presented by the app. Those values are not
+entities in the released Home Assistant 5.0.1 integration.
