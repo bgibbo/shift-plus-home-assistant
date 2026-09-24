@@ -36,7 +36,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # The action reads these files from unauthenticated raw GitHub URLs,
-          # which cannot access this private repository. Brands submission is
-          # also intentionally deferred until approval for public release.
-          ignore: brands hacsjson integration_manifest

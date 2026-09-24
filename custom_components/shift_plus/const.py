@@ -2,7 +2,7 @@
 
 DOMAIN = "shift_plus"
 NAME = "Shift +"
-VERSION = "0.2.0"
+VERSION = "5.0.1"
 
 CONF_ENTITLEMENT_PUBLIC_KEY = "entitlement_public_key"
 CONF_NAME = "name"
