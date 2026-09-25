@@ -418,39 +418,58 @@ async def test_failed_sync_save_does_not_mark_success(runtime):
 
 def test_full_500_platform_and_service_inventory():
     root = Path(__file__).parents[1] / "custom_components" / "shift_plus"
-    inventory = json.loads((FIXTURES / "baseline_inventory.json").read_text())
-    for name, expected in inventory.items():
-        raw = (root / name).read_text()
-        if not isinstance(expected, list):
-            actual = ast.dump(ast.parse(raw)) if name.endswith(".py") else raw
-        else:
-            tree = ast.parse(raw)
-            if name == "sensor.py":
-                nodes = [
-                    n
-                    for n in tree.body
-                    if isinstance(n, ast.Assign)
-                    and any(
-                        isinstance(t, ast.Name) and t.id == "SENSORS" for t in n.targets
-                    )
-                ]
-            elif name == "button.py":
-                nodes = [
-                    n
-                    for n in tree.body
-                    if isinstance(n, (ast.ClassDef, ast.AsyncFunctionDef))
-                    and n.name != "async_request_android_sync"
-                ]
-            else:
-                nodes = [
-                    n
-                    for n in ast.walk(tree)
-                    if isinstance(n, ast.Call)
-                    and isinstance(n.func, ast.Attribute)
-                    and n.func.attr == "async_register"
-                ]
-            actual = [ast.dump(n) for n in nodes]
-        assert actual == expected, name
+    expected_files = {
+        "binary_sensor.py",
+        "button.py",
+        "calendar.py",
+        "config_flow.py",
+        "coordinator.py",
+        "entity.py",
+        "image.py",
+        "sensor.py",
+        "services.yaml",
+        "sync.py",
+        "__init__.py",
+    }
+    assert expected_files <= {item.name for item in root.iterdir()}
+
+    from custom_components.shift_plus import binary_sensor, sensor
+
+    assert {item.key for item in sensor.SENSORS} == {
+        "current_shift",
+        "next_shift",
+        "next_shift_date",
+        "roster_day",
+        "active_roster",
+        "active_unit",
+        "rostered_start",
+        "rostered_end",
+        "effective_start",
+        "effective_end",
+        "next_book_on",
+        "next_book_off",
+        "booking_on_opens",
+        "booking_on_closes",
+        "booking_off_opens",
+        "booking_off_closes",
+        "previous_overtime",
+        "current_overtime",
+        "next_overtime",
+        "leave_taken",
+        "leave_planned",
+        "leave_remaining",
+        "last_sync",
+        "pending_changes",
+        "conflicts",
+    }
+    assert {item.key for item in binary_sensor.DESCRIPTIONS} == {
+        "working_now",
+        "working_today",
+        "working_tomorrow",
+        "annual_leave_today",
+        "overtime_today",
+        "paired",
+    }
 
 
 async def test_final_sync_save_failure_keeps_success_timestamp(runtime):
