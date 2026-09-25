@@ -29,6 +29,8 @@ from .coordinator import RuntimeData, ShiftPlusCoordinator
 from .security import EntitlementVerifier, PairingManager
 from .storage import ShiftPlusStore
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
