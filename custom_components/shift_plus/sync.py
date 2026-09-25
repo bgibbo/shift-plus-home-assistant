@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -195,6 +196,82 @@ class SyncState:
             return len(self.journal)
         oldest_ack = min(self.replica_acks.values())
         return sum(int(item["cursor"]) > oldest_ack for item in self.journal)
+
+    @property
+    def outbound_unacknowledged_count(self) -> int:
+        """HA-originated journal entries not yet acknowledged by every replica."""
+        return sum(
+            item["record"].get("origin_replica_id") == self.replica_id
+            for item in self.journal
+        )
+
+    @property
+    def journal_awaiting_ack_count(self) -> int:
+        """All retained journal entries, including Android-originated records."""
+        return self.pending_change_count
+
+    def conflict_summaries(self) -> list[dict[str, Any]]:
+        """Return user-safe choices without replica IDs or raw protocol data."""
+        return [
+            {
+                "conflict_id": self.conflict_id(key),
+                "record_type": key.split(":", 1)[0],
+                "current": self._safe_record(value["winner"]),
+                "alternative": self._safe_record(value["loser"]),
+                "detected_at": value.get("detected_at"),
+            }
+            for key, value in sorted(self.conflicts.items())
+        ]
+
+    @staticmethod
+    def conflict_id(key: str) -> str:
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    def resolve_conflict_choice(
+        self, conflict_id: str, selection: str
+    ) -> ReplicatedRecord:
+        """Resolve one selected conflict and journal the merged canonical record."""
+        key = next(
+            (key for key in self.conflicts if self.conflict_id(key) == conflict_id),
+            None,
+        )
+        if key is None:
+            raise ValueError("Unknown conflict")
+        if selection not in {"current", "alternative"}:
+            raise ValueError("Selection must be current or alternative")
+        choice = self.conflicts[key]["winner" if selection == "current" else "loser"]
+        return self.resolve_conflict(
+            key, choice.get("payload"), tombstone=bool(choice.get("tombstone"))
+        )
+
+    def _safe_record(self, record: dict[str, Any]) -> dict[str, Any]:
+        record_type = str(record.get("record_type", ""))
+        payload = (
+            record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        )
+        allowed = {
+            "overtime": ("date", "start_minutes", "finish_minutes"),
+            "annual_leave": ("start_date", "number_of_days", "day_portion"),
+            "active_configuration": (
+                "active_roster_id",
+                "active_unit_id",
+                "include_tour_briefing",
+            ),
+        }.get(record_type, ())
+        version = (
+            record.get("version") if isinstance(record.get("version"), dict) else {}
+        )
+        return {
+            "origin": "home_assistant"
+            if record.get("origin_replica_id") == self.replica_id
+            else "android",
+            "origin_revision": int(record.get("origin_counter", 0)),
+            "version_revision": max(
+                (int(value) for value in version.values()), default=0
+            ),
+            "deleted": bool(record.get("tombstone")),
+            "values": {key: payload[key] for key in allowed if key in payload},
+        }
 
     def prune_acknowledged(self) -> None:
         """Discard delivery history only after every known replica acknowledged it."""

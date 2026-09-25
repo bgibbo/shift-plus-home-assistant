@@ -53,6 +53,22 @@ Public 5.0.1 summary IDs are retained where practical so existing dashboards con
 
 Pairing uses a short-lived QR, production three-part EdDSA JWT verification, X25519 key agreement and HKDF-SHA256. Requests use HMAC-SHA256 with nonce replay protection. Premium grants are bound to the HA entry, session, installation, device and app public key; renewal rejects stale grants and entitlement identity changes.
 
+Shift + on Android initiates synchronization when it next connects to Home
+Assistant. **Refresh schedule** recalculates Home Assistant's locally derived
+schedule immediately; it does not wake or contact Android.
+
+**Unacknowledged Home Assistant changes** counts only HA-originated changes not
+yet acknowledged by every paired Android replica. The disabled-by-default
+**Journal entries awaiting acknowledgement** diagnostic includes all retained
+protocol journal entries, including Android-originated entries awaiting the
+next returned cursor.
+
+If **Sync conflicts** is non-zero, inspect its `unresolved` attribute. Each item
+has a safe `conflict_id`, current selection and alternative. Run **Shift +:
+Resolve one sync conflict** with that ID and explicitly choose `current` or
+`alternative`. Only that conflict is resolved; Android receives the merged
+canonical record on its next normal synchronization.
+
 See the [protocol](docs/protocol.md) and [security model](docs/security.md) for details.
 
 ## Troubleshooting

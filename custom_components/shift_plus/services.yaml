@@ -39,8 +39,24 @@ delete_annual_leave:
   fields:
     id: {required: true, selector: {text: {}}}
 sync_now:
-  name: Sync now
-  description: Refresh calculated entities. A paired phone will exchange deltas on its next request.
+  name: Refresh schedule
+  description: Recalculate Home Assistant's local Shift + schedule. Android synchronization occurs when Shift + next connects.
+resolve_conflict:
+  name: Resolve one sync conflict
+  description: Keep the current or alternative version of one inspected conflict. The resolved record is synchronized when Android next connects.
+  fields:
+    conflict_id:
+      name: Conflict ID
+      required: true
+      selector: {text: {}}
+    selection:
+      name: Version to keep
+      required: true
+      selector:
+        select:
+          options:
+            - {value: current, label: Current selected version}
+            - {value: alternative, label: Alternative version}
 set_active_schedule:
   name: Set active schedule
   description: Set the active working roster and unit and queue it for paired Android sync.

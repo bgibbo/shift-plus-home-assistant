@@ -17,11 +17,9 @@ def has_paired_android(runtime: RuntimeData) -> bool:
 
 
 async def async_request_android_sync(runtime: RuntimeData) -> None:
+    """Refresh local calculations; Android initiates network synchronization."""
     if not has_paired_android(runtime):
         raise RuntimeError("No Android device is paired")
-    runtime.store.sync_status = "queued"
-    runtime.store.sync_requested_at = datetime.now(UTC).isoformat()
-    await runtime.store.async_save()
     await runtime.coordinator.async_request_refresh()
 
 
@@ -31,7 +29,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 
 class SyncButton(ShiftPlusEntity, ButtonEntity):
-    _attr_name = "Sync now"
+    _attr_name = "Refresh schedule"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, runtime: RuntimeData) -> None:

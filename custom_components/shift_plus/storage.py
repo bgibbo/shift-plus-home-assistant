@@ -93,6 +93,18 @@ class ShiftPlusStore:
         self.sync.local_change(record_type, record_id, None, tombstone=True)
         await self.async_save()
 
+    async def async_resolve_conflict(
+        self, conflict_id: str, selection: str
+    ) -> ReplicatedRecord:
+        previous = deepcopy(self.sync.to_dict())
+        try:
+            record = self.sync.resolve_conflict_choice(conflict_id, selection)
+            await self.async_save()
+            return record
+        except Exception:
+            self.sync = SyncState(previous)
+            raise
+
     async def async_merge(
         self, records: list[ReplicatedRecord], replica_id: str, ack: int
     ) -> list[dict[str, Any]]:

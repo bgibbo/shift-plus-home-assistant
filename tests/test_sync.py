@@ -107,3 +107,124 @@ def test_acknowledgement_cannot_advance_beyond_server_cursor() -> None:
     state.local_change("overtime", "one", {"date": "2026-08-09"})
     state.acknowledge("phone", 999)
     assert state.replica_acks["phone"] == 1
+
+
+def _record(
+    replica: str, counter: int, *, record_id: str = "record"
+) -> ReplicatedRecord:
+    return ReplicatedRecord(
+        record_type="overtime",
+        record_id=record_id,
+        payload={
+            "date": "2026-09-25",
+            "start_minutes": 480,
+            "finish_minutes": 600,
+            "description": "private note",
+            "credential": "must-not-appear",
+        },
+        version={replica: counter},
+        origin_replica_id=replica,
+        origin_counter=counter,
+        operation_id=f"{replica}-{counter}-{record_id}",
+    )
+
+
+def test_android_operations_are_not_reported_as_outbound_ha_changes() -> None:
+    state = SyncState({"replica_id": "ha"})
+    state.merge(_record("android", 1))
+    assert state.outbound_unacknowledged_count == 0
+    assert state.journal_awaiting_ack_count == 1
+
+
+def test_ha_change_and_cursor_acknowledgement_have_distinct_counts() -> None:
+    state = SyncState({"replica_id": "ha", "replica_acks": {"android": 0}})
+    state.local_change(
+        "overtime",
+        "ha-record",
+        {"date": "2026-09-25", "start_minutes": 600, "finish_minutes": 660},
+    )
+    assert state.outbound_unacknowledged_count == 1
+    assert state.journal_awaiting_ack_count == 1
+    assert len(state.changes_after(0)) == 1
+    assert state.outbound_unacknowledged_count == 1
+    state.acknowledge("android", 1)
+    assert state.outbound_unacknowledged_count == 0
+    assert state.journal_awaiting_ack_count == 0
+
+
+def _conflicted_state() -> SyncState:
+    state = SyncState({"replica_id": "ha"})
+    state.merge(_record("android-a", 1, record_id="one"))
+    state.local_change(
+        "overtime",
+        "one",
+        {"date": "2026-09-25", "start_minutes": 540, "finish_minutes": 660},
+    )
+    state.merge(
+        ReplicatedRecord(
+            "overtime",
+            "one",
+            {"date": "2026-09-25", "start_minutes": 720, "finish_minutes": 780},
+            {"android-a": 2},
+            "android-a",
+            2,
+            operation_id="concurrent-one",
+        )
+    )
+    state.merge(_record("android-b", 1, record_id="two"))
+    state.local_change(
+        "overtime",
+        "two",
+        {"date": "2026-09-26", "start_minutes": 600, "finish_minutes": 700},
+    )
+    state.merge(
+        ReplicatedRecord(
+            "overtime",
+            "two",
+            {"date": "2026-09-26", "start_minutes": 800, "finish_minutes": 900},
+            {"android-b": 2},
+            "android-b",
+            2,
+            operation_id="concurrent-two",
+        )
+    )
+    assert len(state.conflicts) == 2
+    return state
+
+
+def test_conflict_inspection_is_sanitized_and_survives_restart() -> None:
+    restarted = SyncState(_conflicted_state().to_dict())
+    summaries = restarted.conflict_summaries()
+    assert len(summaries) == 2
+    assert summaries[0]["record_type"] == "overtime"
+    rendered = str(summaries)
+    assert "private note" not in rendered
+    assert "credential" not in rendered
+    assert "android-a" not in rendered
+    assert "app_public_key" not in rendered
+
+
+def test_resolve_current_keeps_only_other_conflict_and_journals_result() -> None:
+    state = _conflicted_state()
+    selected = state.conflict_summaries()[0]
+    current_values = selected["current"]["values"]
+    cursor = state.cursor
+    record = state.resolve_conflict_choice(selected["conflict_id"], "current")
+    assert record.payload == current_values
+    assert len(state.conflicts) == 1
+    assert state.cursor == cursor + 1
+    assert state.changes_after(cursor)[0]["record"] == record.to_dict()
+
+
+def test_resolve_alternative_is_deliverable_to_android_protocol() -> None:
+    state = _conflicted_state()
+    selected = state.conflict_summaries()[0]
+    alternative = selected["alternative"]["values"]
+    cursor = state.cursor
+    record = state.resolve_conflict_choice(selected["conflict_id"], "alternative")
+    assert record.payload == alternative
+    assert state.changes_after(cursor) == [
+        {"cursor": cursor + 1, "record": record.to_dict()}
+    ]
+    assert record.origin_replica_id == "ha"
+    assert len(record.version) >= 2

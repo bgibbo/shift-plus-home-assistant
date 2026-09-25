@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
@@ -20,6 +20,7 @@ from .const import (
     SERVICE_ADD_OVERTIME,
     SERVICE_DELETE_LEAVE,
     SERVICE_DELETE_OVERTIME,
+    SERVICE_RESOLVE_CONFLICT,
     SERVICE_SET_ACTIVE_SCHEDULE,
     SERVICE_SYNC_NOW,
     SERVICE_UPDATE_LEAVE,
@@ -159,10 +160,18 @@ def _register_services(hass: HomeAssistant) -> None:
             for device in runtime.store.paired_devices.values()
         ):
             raise HomeAssistantError("No Android device is paired")
-        runtime.store.sync_status = "queued"
-        runtime.store.sync_requested_at = datetime.now(UTC).isoformat()
-        await runtime.store.async_save()
         await runtime.coordinator.async_request_refresh()
+
+    async def resolve_conflict(call: ServiceCall) -> None:
+        runtime = _entry_runtime(hass)
+        try:
+            await runtime.store.async_resolve_conflict(
+                call.data["conflict_id"], call.data["selection"]
+            )
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+        await runtime.coordinator.async_request_refresh()
+        runtime.coordinator.async_update_listeners()
 
     async def set_active_schedule(call: ServiceCall) -> None:
         runtime = _entry_runtime(hass)
@@ -192,6 +201,17 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_LEAVE, add_leave)
     hass.services.async_register(DOMAIN, SERVICE_DELETE_LEAVE, delete_leave)
     hass.services.async_register(DOMAIN, SERVICE_SYNC_NOW, sync_now)
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESOLVE_CONFLICT,
+        resolve_conflict,
+        schema=vol.Schema(
+            {
+                vol.Required("conflict_id"): cv.string,
+                vol.Required("selection"): vol.In(("current", "alternative")),
+            }
+        ),
+    )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_ACTIVE_SCHEDULE, set_active_schedule
     )

@@ -80,6 +80,12 @@ def test_pairing_state_survives_runtime_recreation_from_durable_store():
     assert has_paired_android(restarted)
 
 
+def test_pairing_qr_is_unavailable_after_pairing_without_forcing_repair():
+    value = runtime({"phone-one": {"credential": "stored", "revoked": False}})
+    assert value.pairing_status == "paired"
+    assert value.pairing_qr is None
+
+
 @pytest.mark.asyncio
 async def test_sync_now_is_unavailable_without_a_paired_android():
     value = runtime()
@@ -89,11 +95,11 @@ async def test_sync_now_is_unavailable_without_a_paired_android():
 
 
 @pytest.mark.asyncio
-async def test_sync_now_records_request_for_existing_secure_pairing():
+async def test_refresh_schedule_only_recalculates_local_state():
     value = runtime({"phone-one": {"credential": "stored", "revoked": False}})
     await async_request_android_sync(value)
-    assert value.store.sync_requested_at is not None
-    assert value.store.saved == 1
+    assert value.store.sync_requested_at is None
+    assert value.store.saved == 0
     assert value.coordinator.refreshes == 1
 
 

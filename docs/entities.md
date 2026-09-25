@@ -20,7 +20,8 @@ Shift + 5.1.0 exposes the following entities. Home Assistant may add a suffix wh
 
 - Previous, current and next 28-day overtime totals are calculated from synchronized overtime records.
 - Leave taken, planned and remaining are calculated from synchronized leave records and local roster definitions.
-- Last successful sync, pending changes and conflicts are diagnostic entities.
+- Last successful sync, Unacknowledged Home Assistant changes, Journal entries
+  awaiting acknowledgement and Sync conflicts are diagnostic entities.
 
 ## Binary sensors
 
@@ -32,7 +33,16 @@ Roster is calculated locally. Annual leave and Overtime calendars are generated 
 
 ## Controls
 
-Sync now requests a refresh. Create Android pairing QR creates a five-minute single-use QR. Android pairing QR exposes the image only while it remains valid.
+Refresh schedule recalculates HA's local schedule. Android synchronization
+occurs when Shift + next connects. Create Android pairing QR creates a
+five-minute single-use QR. Android pairing QR is unavailable when no live QR
+exists, including after successful pairing. Android pairing status should show
+`paired` for an existing active pairing.
+
+Sync conflicts exposes a sanitized `unresolved` list. Choose one conflict ID
+and run `shift_plus.resolve_conflict` with `selection: current` or
+`selection: alternative`. The action resolves only that conflict and queues the
+merged record for the next Android-initiated synchronization.
 
 ## Compatibility sensors
 

@@ -14,7 +14,7 @@
     "step": {
       "init": {
         "title": "Android synchronization",
-        "description": "Status: {status}\n\nPaired Android devices: {paired_devices}\n\nUse Create Android pairing QR on the Shift + device page for initial pairing or re-pairing. Sync Now becomes available after a device is paired."
+        "description": "Status: {status}\n\nPaired Android devices: {paired_devices}\n\nUse Create Android pairing QR on the Shift + device page for initial pairing or re-pairing. Refresh schedule becomes available after a device is paired. Android initiates synchronization when Shift + next connects."
       }
     }
   }

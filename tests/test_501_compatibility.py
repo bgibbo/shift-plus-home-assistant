@@ -314,10 +314,13 @@ async def test_expired_sync_and_bad_hmac_never_advance_success(runtime):
     assert runtime.store.last_successful_sync == last
 
 
-async def test_queued_request_and_endpoint_probe_do_not_mark_success(runtime):
+async def test_schedule_refresh_and_endpoint_probe_do_not_mark_sync_success(runtime):
     last = runtime.store.last_successful_sync
+    status = runtime.store.sync_status
     await async_request_android_sync(runtime)
-    assert runtime.store.sync_status == "queued"
+    assert runtime.store.sync_status == status
+    assert runtime.store.sync_requested_at is None
+    assert runtime.coordinator.refreshed
     assert runtime.store.last_successful_sync == last
     req = request(runtime, {"device_id": "phone-existing", "challenge": "a" * 40})
     assert (await EndpointVerificationView().post(req, "entry-existing")).status == 200
@@ -383,6 +386,7 @@ async def test_entity_and_service_contract_preserved(runtime):
         "SERVICE_UPDATE_LEAVE",
         "SERVICE_DELETE_LEAVE",
         "SERVICE_SYNC_NOW",
+        "SERVICE_RESOLVE_CONFLICT",
         "SERVICE_SET_ACTIVE_SCHEDULE",
     ]:
         assert name in registered
@@ -460,6 +464,7 @@ def test_full_500_platform_and_service_inventory():
         "leave_remaining",
         "last_sync",
         "pending_changes",
+        "journal_awaiting_ack",
         "conflicts",
     }
     assert {item.key for item in binary_sensor.DESCRIPTIONS} == {

@@ -175,10 +175,17 @@ SENSORS = (
     ),
     ShiftPlusSensorDescription(
         key="pending_changes",
-        name="Pending Home Assistant changes",
+        name="Unacknowledged Home Assistant changes",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda d: d["pending_changes"],
+    ),
+    ShiftPlusSensorDescription(
+        key="journal_awaiting_ack",
+        name="Journal entries awaiting acknowledgement",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d["journal_awaiting_ack"],
     ),
     ShiftPlusSensorDescription(
         key="conflicts",
@@ -245,7 +252,10 @@ class ShiftPlusSensor(ShiftPlusEntity, SensorEntity):
     def native_value(self):
         data = dict(self.coordinator.data)
         data["last_sync"] = self.runtime.store.last_successful_sync
-        data["pending_changes"] = self.runtime.store.sync.pending_change_count
+        data["pending_changes"] = self.runtime.store.sync.outbound_unacknowledged_count
+        data["journal_awaiting_ack"] = (
+            self.runtime.store.sync.journal_awaiting_ack_count
+        )
         data["conflicts"] = len(self.runtime.store.sync.conflicts)
         return self.entity_description.value_fn(data)
 
@@ -257,6 +267,22 @@ class ShiftPlusSensor(ShiftPlusEntity, SensorEntity):
                 "sync_requested_at": self.runtime.store.sync_requested_at,
                 **self.runtime.store.sync_details,
             }
+        if self.entity_description.key == "pending_changes":
+            return {
+                "description": (
+                    "Home Assistant-originated changes not yet acknowledged "
+                    "by every paired Android replica"
+                )
+            }
+        if self.entity_description.key == "journal_awaiting_ack":
+            return {
+                "description": (
+                    "Protocol journal entries retained until Android returns "
+                    "a newer server cursor"
+                )
+            }
+        if self.entity_description.key == "conflicts":
+            return {"unresolved": self.runtime.store.sync.conflict_summaries()}
         return (
             self.entity_description.attrs_fn(self.coordinator.data)
             if self.entity_description.attrs_fn
