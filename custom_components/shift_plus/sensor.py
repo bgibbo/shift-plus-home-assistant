@@ -1,181 +1,320 @@
-"""Dashboard-safe sensors for Shift +."""
+"""Shift + sensor entities."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
+from homeassistant.const import EntityCategory, UnitOfTime
 
-from .const import DOMAIN, NAME
-from .crypto import entitlement_is_active
-from .entity_data import (
-    active_configuration,
-    calendar_events,
-    leave_summary,
-    overtime_summary,
+from .coordinator import RuntimeData
+from .entity import ShiftPlusEntity
+from .roster.calculations import overtime_minutes
+
+
+@dataclass(frozen=True, kw_only=True)
+class ShiftPlusSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[dict[str, Any]], Any]
+    attrs_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+
+
+def _iso(value: datetime | None) -> datetime | None:
+    return value
+
+
+SENSORS = (
+    ShiftPlusSensorDescription(
+        key="current_shift",
+        name="Current shift",
+        value_fn=lambda d: d["duty"].category,
+        attrs_fn=lambda d: {
+            "code": d["duty"].code,
+            "rostered_time": d["duty"].time_label,
+        },
+    ),
+    ShiftPlusSensorDescription(
+        key="next_shift",
+        name="Next shift",
+        value_fn=lambda d: d["next_duty"].category,
+        attrs_fn=lambda d: {
+            "code": d["next_duty"].code,
+            "date": d["next_duty"].date.isoformat(),
+            "rostered_time": d["next_duty"].time_label,
+        },
+    ),
+    ShiftPlusSensorDescription(
+        key="next_shift_date",
+        name="Next shift date",
+        device_class=SensorDeviceClass.DATE,
+        value_fn=lambda d: d["next_duty"].date,
+    ),
+    ShiftPlusSensorDescription(
+        key="roster_day",
+        name="Roster day",
+        value_fn=lambda d: d["duty"].cycle_day,
+        attrs_fn=lambda d: {"cycle_length": d["duty"].cycle_length},
+    ),
+    ShiftPlusSensorDescription(
+        key="active_roster", name="Active roster", value_fn=lambda d: d["roster_id"]
+    ),
+    ShiftPlusSensorDescription(
+        key="active_unit", name="Active unit", value_fn=lambda d: d["unit_id"]
+    ),
+    ShiftPlusSensorDescription(
+        key="rostered_start",
+        name="Rostered shift start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].roster_start),
+    ),
+    ShiftPlusSensorDescription(
+        key="rostered_end",
+        name="Rostered shift end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].roster_end),
+    ),
+    ShiftPlusSensorDescription(
+        key="effective_start",
+        name="Effective work start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].effective_start),
+    ),
+    ShiftPlusSensorDescription(
+        key="effective_end",
+        name="Effective work end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].effective_end),
+    ),
+    ShiftPlusSensorDescription(
+        key="next_book_on",
+        name="Next Book On",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["next_book_on"]),
+    ),
+    ShiftPlusSensorDescription(
+        key="next_book_off",
+        name="Next Book Off",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["next_book_off"]),
+    ),
+    ShiftPlusSensorDescription(
+        key="booking_on_opens",
+        name="Booking-on window opens",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].booking_on_opens),
+    ),
+    ShiftPlusSensorDescription(
+        key="booking_on_closes",
+        name="Booking-on window closes",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].booking_on_closes),
+    ),
+    ShiftPlusSensorDescription(
+        key="booking_off_opens",
+        name="Booking-off window opens",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].booking_off_opens),
+    ),
+    ShiftPlusSensorDescription(
+        key="booking_off_closes",
+        name="Booking-off window closes",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d: _iso(d["boundaries"].booking_off_closes),
+    ),
+    ShiftPlusSensorDescription(
+        key="previous_overtime",
+        name="Previous 28-day overtime",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        value_fn=lambda d: d["overtime_totals"][0],
+    ),
+    ShiftPlusSensorDescription(
+        key="current_overtime",
+        name="Current 28-day overtime",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        value_fn=lambda d: d["overtime_totals"][1],
+    ),
+    ShiftPlusSensorDescription(
+        key="next_overtime",
+        name="Next known 28-day overtime",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        value_fn=lambda d: d["overtime_totals"][2],
+    ),
+    ShiftPlusSensorDescription(
+        key="leave_taken",
+        name="Leave taken",
+        native_unit_of_measurement="d",
+        value_fn=lambda d: d["leave_totals"][0],
+    ),
+    ShiftPlusSensorDescription(
+        key="leave_planned",
+        name="Leave planned",
+        native_unit_of_measurement="d",
+        value_fn=lambda d: d["leave_totals"][1],
+    ),
+    ShiftPlusSensorDescription(
+        key="leave_remaining",
+        name="Leave remaining",
+        native_unit_of_measurement="d",
+        value_fn=lambda d: d["leave_totals"][2],
+    ),
+    ShiftPlusSensorDescription(
+        key="last_sync",
+        name="Last successful sync",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: (
+            datetime.fromisoformat(d["last_sync"]) if d.get("last_sync") else None
+        ),
+    ),
+    ShiftPlusSensorDescription(
+        key="pending_changes",
+        name="Pending Home Assistant changes",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d["pending_changes"],
+    ),
+    ShiftPlusSensorDescription(
+        key="conflicts",
+        name="Sync conflicts",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda d: d["conflicts"],
+    ),
 )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    runtime = hass.data[DOMAIN][entry.entry_id]
+async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    runtime: RuntimeData = entry.runtime_data
     async_add_entities(
-        [
-            ShiftPlusStatusSensor(entry, runtime),
-            ShiftPlusActiveRosterSensor(entry, runtime),
-            ShiftPlusCalendarSensor(entry, runtime),
-            ShiftPlusLeaveSensor(entry, runtime),
-            ShiftPlusOvertimeSensor(entry, runtime),
+        [ShiftPlusSensor(runtime, description) for description in SENSORS]
+        + [AndroidPairingStatusSensor(runtime)]
+        + [
+            CompatibilitySummarySensor(runtime, key)
+            for key in ("paired_devices", "calendar", "annual_leave", "overtime")
         ]
     )
 
 
-class ShiftPlusSensor(SensorEntity):
-    """Base entity linked to the Shift + device and store updates."""
+class AndroidPairingStatusSensor(ShiftPlusEntity, SensorEntity):
+    _attr_name = "Android pairing status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["ready", "qr_available", "paired", "expired"]
+    _attr_entity_category = EntityCategory.CONFIG
 
-    _attr_has_entity_name = True
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any], key: str) -> None:
-        self._entry = entry
-        self._runtime = runtime
-        self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": NAME,
-            "manufacturer": "Shift +",
-            "model": "Android companion integration",
-        }
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self.async_on_remove(
-            self._runtime["store"].add_listener(self._handle_store_update)
-        )
-
-    @callback
-    def _handle_store_update(self) -> None:
-        self.async_write_ha_state()
-
-
-class ShiftPlusStatusSensor(ShiftPlusSensor):
-    """Expose pairing and synchronization status."""
-
-    _attr_name = "Paired devices"
-    _attr_icon = "mdi:calendar-sync"
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any]) -> None:
-        super().__init__(entry, runtime, "paired_devices")
-
-    @property
-    def native_value(self) -> int:
-        return len(self._runtime["store"].data["devices"])
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        store = self._runtime["store"]
-        devices = store.data["devices"].values()
-        active = any(_entitlement_active(device) for device in devices)
-        sync_status = (
-            "ready"
-            if active
-            else ("entitlement_expired" if store.data["devices"] else "not_paired")
-        )
-        return {
-            "sync_status": sync_status,
-            "premium_status": "active" if active else "inactive",
-            "server_cursor": store.data["cursor"],
-            "stored_records": len(store.data["records"]),
-            "pairing_path": f"/api/shift_plus/{self._entry.entry_id}/pairing",
-        }
-
-
-class ShiftPlusActiveRosterSensor(ShiftPlusSensor):
-    """Expose the active roster and unit identifiers."""
-
-    _attr_name = "Active roster"
-    _attr_icon = "mdi:calendar-account"
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any]) -> None:
-        super().__init__(entry, runtime, "active_roster")
+    def __init__(self, runtime: RuntimeData) -> None:
+        super().__init__(runtime.coordinator, "android_pairing_status")
+        self.runtime = runtime
 
     @property
     def native_value(self) -> str:
-        return active_configuration(self._runtime["store"].data).get(
-            "roster_id", "unknown"
+        return self.runtime.pairing_status
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        active = sum(
+            1
+            for device in self.runtime.store.paired_devices.values()
+            if not device.get("revoked")
         )
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return active_configuration(self._runtime["store"].data)
-
-
-class ShiftPlusCalendarSensor(ShiftPlusSensor):
-    """Expose sanitized events consumed by the Shift + roster card."""
-
-    _attr_name = "Calendar"
-    _attr_icon = "mdi:calendar-month"
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any]) -> None:
-        super().__init__(entry, runtime, "calendar")
-
-    @property
-    def native_value(self) -> int:
-        return len(calendar_events(self._runtime["store"].data))
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
         return {
-            "events": calendar_events(self._runtime["store"].data),
-            "duty_data_available": False,
+            "paired_devices": active,
+            "qr_expires_at": self.runtime.pairing_qr_expires_at.isoformat()
+            if self.runtime.pairing_qr_expires_at
+            else None,
         }
 
 
-class ShiftPlusLeaveSensor(ShiftPlusSensor):
-    """Expose annual-leave totals and timing."""
+class ShiftPlusSensor(ShiftPlusEntity, SensorEntity):
+    entity_description: ShiftPlusSensorDescription
 
-    _attr_name = "Annual leave"
-    _attr_icon = "mdi:beach"
-    _attr_native_unit_of_measurement = "d"
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any]) -> None:
-        super().__init__(entry, runtime, "annual_leave")
-
-    @property
-    def native_value(self) -> float:
-        return float(leave_summary(self._runtime["store"].data)["days"])
+    def __init__(
+        self, runtime: RuntimeData, description: ShiftPlusSensorDescription
+    ) -> None:
+        super().__init__(runtime.coordinator, description.key)
+        self.runtime = runtime
+        self.entity_description = description
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return leave_summary(self._runtime["store"].data)
-
-
-class ShiftPlusOvertimeSensor(ShiftPlusSensor):
-    """Expose synchronized overtime totals."""
-
-    _attr_name = "Overtime"
-    _attr_icon = "mdi:clock-plus-outline"
-    _attr_native_unit_of_measurement = "h"
-
-    def __init__(self, entry: ConfigEntry, runtime: dict[str, Any]) -> None:
-        super().__init__(entry, runtime, "overtime")
+    def native_value(self):
+        data = dict(self.coordinator.data)
+        data["last_sync"] = self.runtime.store.last_successful_sync
+        data["pending_changes"] = self.runtime.store.sync.pending_change_count
+        data["conflicts"] = len(self.runtime.store.sync.conflicts)
+        return self.entity_description.value_fn(data)
 
     @property
-    def native_value(self) -> float:
-        return float(overtime_summary(self._runtime["store"].data)["hours"])
+    def extra_state_attributes(self):
+        if self.entity_description.key == "last_sync":
+            return {
+                "sync_status": self.runtime.store.sync_status,
+                "sync_requested_at": self.runtime.store.sync_requested_at,
+                **self.runtime.store.sync_details,
+            }
+        return (
+            self.entity_description.attrs_fn(self.coordinator.data)
+            if self.entity_description.attrs_fn
+            else None
+        )
+
+
+class CompatibilitySummarySensor(ShiftPlusEntity, SensorEntity):
+    """Keep public 5.0.1 entity IDs available during and after upgrade."""
+
+    def __init__(self, runtime: RuntimeData, key: str) -> None:
+        super().__init__(runtime.coordinator, key)
+        self.runtime = runtime
+        self.key = key
+        self._attr_name = {
+            "paired_devices": "Paired devices",
+            "calendar": "Calendar",
+            "annual_leave": "Annual leave",
+            "overtime": "Overtime",
+        }[key]
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return overtime_summary(self._runtime["store"].data)
+    def native_value(self):
+        if self.key == "paired_devices":
+            return sum(
+                not item.get("revoked")
+                for item in self.runtime.store.paired_devices.values()
+            )
+        if self.key == "calendar":
+            return len(self.coordinator.data["leave"]) + len(
+                self.coordinator.data["overtime"]
+            )
+        if self.key == "annual_leave":
+            totals = self.coordinator.data["leave_totals"]
+            return totals[0] + totals[1]
+        return round(
+            sum(overtime_minutes(item) for item in self.coordinator.data["overtime"])
+            / 60,
+            2,
+        )
 
-
-def _entitlement_active(device: dict[str, Any]) -> bool:
-    try:
-        return entitlement_is_active(device)
-    except (KeyError, TypeError, ValueError):
-        return False
+    @property
+    def extra_state_attributes(self):
+        if self.key == "paired_devices":
+            return {
+                "sync_status": self.runtime.store.sync_status,
+                "premium_status": "active"
+                if any(
+                    not item.get("revoked")
+                    for item in self.runtime.store.paired_devices.values()
+                )
+                else "inactive",
+                "server_cursor": self.runtime.store.sync.cursor,
+                "stored_records": len(self.runtime.store.sync.records),
+            }
+        if self.key == "calendar":
+            return {"duty_data_available": True}
+        if self.key == "annual_leave":
+            totals = self.coordinator.data["leave_totals"]
+            return {"taken": totals[0], "planned": totals[1], "remaining": totals[2]}
+        return {"entries": len(self.coordinator.data["overtime"])}

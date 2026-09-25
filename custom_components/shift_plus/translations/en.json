@@ -1,26 +1,20 @@
 {
+  "title": "Shift +",
   "config": {
-    "abort": {
-      "already_configured": "Shift + is already configured."
-    },
     "step": {
       "user": {
-        "data": {
-          "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)",
-          "name": "Name"
-        },
-        "description": "Configure the local Shift + synchronization service.",
-        "title": "Shift +"
+        "title": "Set up Shift +",
+        "description": "Set up Shift +, then pair the Android app. Home Assistant synchronization requires Shift + Premium.",
+        "data": {"name": "Name"}
       }
-    }
+    },
+    "abort": {"already_configured": "Shift + is already configured."}
   },
   "options": {
     "step": {
       "init": {
-        "data": {
-          "entitlement_public_key": "Premium entitlement Ed25519 public key (base64url)"
-        },
-        "description": "The bundled production verification key may be overridden here for controlled key rotation."
+        "title": "Android synchronization",
+        "description": "Status: {status}\n\nPaired Android devices: {paired_devices}\n\nUse Create Android pairing QR on the Shift + device page for initial pairing or re-pairing. Sync Now becomes available after a device is paired."
       }
     }
   }

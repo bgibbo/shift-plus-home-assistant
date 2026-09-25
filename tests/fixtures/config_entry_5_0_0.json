@@ -1,0 +1,14 @@
+{
+  "entry_id": "entry-existing",
+  "unique_id": "shift-plus-standalone",
+  "version": 1,
+  "domain": "shift_plus",
+  "title": "Shift +",
+  "data": {
+    "roster_id": "non-core-2",
+    "unit_id": "unit-b"
+  },
+  "options": {
+    "include_tour_briefing": true
+  }
+}

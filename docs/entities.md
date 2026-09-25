@@ -1,28 +1,43 @@
-# Entity inventory
+# Entity reference
 
-Entity IDs below are defaults; Home Assistant may suffix or users may rename
-them. All entities belong to the **Shift +** device and update after sync.
+Shift + 5.1.0 exposes the following entities. Home Assistant may add a suffix when an entity ID is already occupied.
 
-| Entity | Default ID | State | Attributes | Dashboard | Automation | Availability |
-|---|---|---|---|---|---|---|
-| Paired devices | `sensor.shift_paired_devices` | Paired-device count | `sync_status`, `premium_status`, server cursor, stored-record count, pairing path | Yes | Yes | Available after integration startup |
-| Active roster | `sensor.shift_active_roster` | Active roster ID or `unknown` | Roster and unit IDs | Yes | Yes | Available; `unknown` before configuration sync |
-| Calendar | `sensor.shift_calendar` | Sanitized calendar-event count | Leave/overtime `events`; duty-data capability flag | Custom card | Yes | Available; empty before sync |
-| Annual leave | `sensor.shift_annual_leave` | Total synchronized leave days | Whether today is leave and next leave date | Yes | Yes | Available; zero before leave sync |
-| Overtime | `sensor.shift_overtime` | Total synchronized overtime hours | Entry count and next overtime date | Yes | Yes | Available; zero before overtime sync |
+## Schedule sensors
 
-Calendar events exclude record IDs, operation IDs, organisation names and free
-text descriptions. No purchase token, entitlement token, signing key, pairing
-secret, device credential or HMAC material is exposed by an entity.
+| Name | Source |
+|---|---|
+| Current Shift | Calculated locally from date, active roster, unit and schedule overrides |
+| Next Shift | Calculated locally by scanning forward |
+| Next Shift Date | Date of the locally calculated next working duty |
+| Roster day | Local roster-cycle position |
+| Active roster / Active unit | Synchronized Android configuration |
+| Rostered start / end | Local roster calculation |
+| Effective start / end | Local roster plus overtime, briefing and leave rules |
+| Next Book On / Next Book Off | Locally calculated next effective boundaries |
+| Booking on/off opens/closes | Local windows before effective boundaries |
 
-## Current protocol boundary
+## Leave and overtime sensors
 
-The app currently synchronizes active roster/unit identifiers, annual leave and
-overtime. It does not synchronize the computed duty for each date. Consequently,
-there are no truthful **today's duty**, **next duty**, or **upcoming duties**
-entities yet. The card visibly reports that boundary and is ready to consume a
-future sanitized `days` attribute without changing its visual design.
+- Previous, current and next 28-day overtime totals are calculated from synchronized overtime records.
+- Leave taken, planned and remaining are calculated from synchronized leave records and local roster definitions.
+- Last successful sync, pending changes and conflicts are diagnostic entities.
 
-Current Shift, Next Shift and book-on/book-off information displayed in the
-Shift + Android app is calculated and presented by the app. Those values are not
-entities in the released Home Assistant 5.0.1 integration.
+## Binary sensors
+
+Working now, Working today, Working tomorrow, Annual leave today, Overtime today, and Android app paired.
+
+## Calendars
+
+Roster is calculated locally. Annual leave and Overtime calendars are generated from synchronized records.
+
+## Controls
+
+Sync now requests a refresh. Create Android pairing QR creates a five-minute single-use QR. Android pairing QR exposes the image only while it remains valid.
+
+## Compatibility sensors
+
+The public 5.0.1 unique IDs for Paired devices, Active roster, Calendar, Annual leave and Overtime remain available. This prevents avoidable dashboard and automation breakage during upgrade.
+
+## Data boundary
+
+Android supplies active configuration, roster and unit IDs, schedule settings, annual-leave records and overtime records. Home Assistant supplies no competing roster dataset: it stores the synchronized replica and derives HA-facing schedule projections from the bundled roster contract.

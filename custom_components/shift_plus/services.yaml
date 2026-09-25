@@ -1,3 +1,51 @@
-create_pairing:
-  name: Create pairing QR
-  description: Creates a notification containing the authenticated Shift + pairing page.
+add_overtime:
+  name: Add overtime
+  description: Add one manually entered overtime record for a date.
+  fields:
+    id: {name: Stable record ID, selector: {text: {}}}
+    date: {required: true, selector: {date: {}}}
+    start_minutes: {required: true, selector: {number: {min: 0, max: 1439, mode: box}}}
+    finish_minutes: {required: true, selector: {number: {min: 0, max: 1439, mode: box}}}
+    description: {selector: {text: {}}}
+update_overtime:
+  name: Update overtime
+  description: Update an overtime record using its stable ID.
+  fields:
+    id: {required: true, selector: {text: {}}}
+    date: {required: true, selector: {date: {}}}
+    start_minutes: {required: true, selector: {number: {min: 0, max: 1439, mode: box}}}
+    finish_minutes: {required: true, selector: {number: {min: 0, max: 1439, mode: box}}}
+    description: {selector: {text: {}}}
+delete_overtime:
+  name: Delete overtime
+  fields:
+    id: {required: true, selector: {text: {}}}
+add_annual_leave:
+  name: Add annual leave
+  fields:
+    id: {selector: {text: {}}}
+    start_date: {required: true, selector: {date: {}}}
+    number_of_days: {required: true, selector: {number: {min: 1, max: 366, mode: box}}}
+    day_portion: {selector: {select: {options: [fullDay, morning, afternoon]}}}
+update_annual_leave:
+  name: Update annual leave
+  fields:
+    id: {required: true, selector: {text: {}}}
+    start_date: {required: true, selector: {date: {}}}
+    number_of_days: {required: true, selector: {number: {min: 1, max: 366, mode: box}}}
+    day_portion: {selector: {select: {options: [fullDay, morning, afternoon]}}}
+delete_annual_leave:
+  name: Delete annual leave
+  fields:
+    id: {required: true, selector: {text: {}}}
+sync_now:
+  name: Sync now
+  description: Refresh calculated entities. A paired phone will exchange deltas on its next request.
+set_active_schedule:
+  name: Set active schedule
+  description: Set the active working roster and unit and queue it for paired Android sync.
+  fields:
+    roster_id: {required: true, selector: {text: {}}}
+    unit_id: {required: true, selector: {text: {}}}
+    organisation_name: {selector: {text: {}}}
+    include_tour_briefing: {selector: {boolean: {}}}

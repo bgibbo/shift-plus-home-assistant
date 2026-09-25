@@ -1,303 +1,355 @@
-"""HTTP API implementing the Shift Plus mobile protocol."""
+"""Narrow authenticated transport endpoints for pairing and delta sync."""
 
 from __future__ import annotations
 
+import base64
 import json
-from datetime import UTC, datetime, timedelta
-from io import BytesIO
+import logging
+from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
-import qrcode
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.network import get_url
 
-from .const import (
-    CONF_ENTITLEMENT_PUBLIC_KEY,
-    DOMAIN,
-    ENTITLEMENT_MAX_SECONDS,
-    PRODUCTION_ENTITLEMENT_PUBLIC_KEY,
-)
-from .crypto import (
+from .const import DOMAIN, PROTOCOL_VERSION
+from .coordinator import make_qr
+from .security import (
     EntitlementError,
-    b64decode,
-    endpoint_proof,
     entitlement_is_active,
-    verify_entitlement,
-    verify_request_signature,
+    sign_endpoint_challenge,
+    validate_renewal,
+    verify_request,
 )
-from .store import ShiftPlusStore
+from .sync import ReplicatedRecord
+
+_LOGGER = logging.getLogger(__name__)
 
 
-def _runtime(request: web.Request, entry_id: str) -> dict[str, Any]:
-    hass: HomeAssistant = request.app["hass"]
-    runtime = hass.data[DOMAIN].get(entry_id)
-    if runtime is None:
-        raise web.HTTPNotFound()
-    return runtime
-
-
-async def _json(request: web.Request) -> tuple[bytes, dict[str, Any]]:
-    body = await request.read()
-    if len(body) > 2_000_000:
-        raise web.HTTPRequestEntityTooLarge(max_size=2_000_000, actual_size=len(body))
-    try:
-        value = json.loads(body or b"{}")
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
-        raise web.HTTPBadRequest(text="Invalid JSON") from err
-    if not isinstance(value, dict):
-        raise web.HTTPBadRequest(text="Expected a JSON object")
-    return body, value
-
-
-def _verification_key(runtime: dict[str, Any]) -> str:
-    entry = runtime["entry"]
-    return (
-        entry.options.get(
-            CONF_ENTITLEMENT_PUBLIC_KEY,
-            entry.data.get(
-                CONF_ENTITLEMENT_PUBLIC_KEY, PRODUCTION_ENTITLEMENT_PUBLIC_KEY
-            ),
-        ).strip()
-        or PRODUCTION_ENTITLEMENT_PUBLIC_KEY
-    )
-
-
-def _expires_at(claims: dict[str, Any]) -> datetime:
-    maximum = datetime.now(UTC) + timedelta(seconds=ENTITLEMENT_MAX_SECONDS)
-    claimed = datetime.fromtimestamp(float(claims["exp"]), UTC)
-    return min(claimed, maximum)
-
-
-def _authenticate(
-    request: web.Request,
-    store: ShiftPlusStore,
-    device_id: str,
-    body: bytes,
-    *,
-    allow_expired: bool = False,
-) -> dict[str, Any]:
-    device = store.device(device_id)
-    nonce = request.headers.get("X-Shift-Plus-Nonce", "")
-    signature = request.headers.get("X-Shift-Plus-Signature", "")
-    if (
-        device is None
-        or not nonce
-        or not signature
-        or not store.accept_nonce(device_id, nonce)
-        or not verify_request_signature(
-            b64decode(device["credential"]), nonce, body, signature
-        )
-    ):
-        raise web.HTTPUnauthorized(text="Invalid device authentication")
-    if not allow_expired and not entitlement_is_active(device):
-        raise web.HTTPForbidden(text="Premium entitlement expired")
-    return device
-
-
-class PairingPageView(HomeAssistantView):
-    """Authenticated page that displays a short-lived pairing QR."""
-
-    url = "/api/shift_plus/{entry_id}/pairing"
-    name = "api:shift_plus:pairing_page"
+class PairingStartView(HomeAssistantView):
+    url = "/api/shift_plus/{entry_id}/pairing/start"
+    name = "api:shift_plus:pairing:start"
     requires_auth = True
 
-    async def get(self, request: web.Request, entry_id: str) -> web.Response:
-        runtime = _runtime(request, entry_id)
-        hass: HomeAssistant = request.app["hass"]
-        payload = runtime["store"].new_pairing(get_url(hass, prefer_external=False))
-        raw = json.dumps(payload, separators=(",", ":"))
-        image = qrcode.make(raw)
-        output = BytesIO()
-        image.save(output, format="PNG")
-        import base64
-
-        data_uri = (
-            "data:image/png;base64," + base64.b64encode(output.getvalue()).decode()
+    async def post(self, request: web.Request, entry_id: str) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
+        if runtime.pairing is None:
+            return self.json_message(
+                "Premium entitlement public key is not configured", 409
+            )
+        data = await request.json()
+        base_url = str(data.get("base_url") or request.url.origin())
+        payload = runtime.pairing.begin(base_url)
+        runtime.pairing_payload = payload
+        runtime.pairing_qr = make_qr(payload)
+        runtime.pairing_qr_generated_at = datetime.now(UTC)
+        runtime.pairing_qr_expires_at = datetime.fromisoformat(
+            str(payload["expires_at"])
         )
-        html = (
-            "<!doctype html><html><head>"
-            '<meta name="viewport" content="width=device-width">'
-            "<title>Pair Shift +</title><style>"
-            "body{font-family:sans-serif;text-align:center;margin:2rem}"
-            "img{width:min(80vw,420px);image-rendering:pixelated}"
-            "</style></head><body><h1>Pair Shift +</h1>"
-            "<p>In Shift +, open Home Assistant and scan this code.</p>"
-            f'<img alt="Shift + pairing QR" src="{data_uri}">'
-            "<p>This code expires in five minutes.</p></body></html>"
-        )
-        return web.Response(text=html, content_type="text/html")
+        runtime.pairing_qr_expired = False
+        runtime.coordinator.async_update_listeners()
+        return self.json(payload)
 
 
 class PairingCompleteView(HomeAssistantView):
-    """Complete X25519 pairing from the mobile app."""
-
     url = "/api/shift_plus/{entry_id}/pairing/complete"
-    name = "api:shift_plus:pairing_complete"
+    name = "api:shift_plus:pairing:complete"
     requires_auth = False
 
     async def post(self, request: web.Request, entry_id: str) -> web.Response:
-        runtime = _runtime(request, entry_id)
-        store: ShiftPlusStore = runtime["store"]
-        _, data = await _json(request)
+        runtime = _runtime(request.app["hass"], entry_id)
+        if runtime.pairing is None:
+            return self.json_message("Pairing is unavailable", 409)
         try:
-            session_id = str(data["session_id"])
-            secret = str(data["one_time_secret"])
-            device_id = str(data["device_id"])
-            app_public_key = str(data["app_public_key"])
-            claims = verify_entitlement(
-                str(data["entitlement"]),
-                _verification_key(runtime),
-                entry_id=entry_id,
-                session_id=session_id,
-                device_id=device_id,
-                app_public_key=app_public_key,
+            data = await request.json()
+            claim, credential = runtime.pairing.complete(
+                session_id=data["session_id"],
+                one_time_secret=data["one_time_secret"],
+                app_public_key=data["app_public_key"],
+                entitlement=data["entitlement"],
+                device_id=data["device_id"],
             )
-            store.consume_pairing(session_id, secret)
-            expires_at = _expires_at(claims)
-            await store.add_device(
-                device_id=device_id,
-                app_public_key=app_public_key,
-                one_time_secret=secret,
-                entitlement_expires_at=expires_at,
-                entitlement_id=claims["entitlement_id"],
-                entitlement_issued_at=float(claims["iat"]),
-                entitlement_jti=claims["jti"],
-            )
-        except EntitlementError as err:
-            raise web.HTTPForbidden(text=str(err)) from err
-        except (KeyError, TypeError, ValueError) as err:
-            raise web.HTTPBadRequest(text="Invalid or expired pairing request") from err
+        except (KeyError, ValueError) as error:
+            runtime.clear_pairing_qr(expired=True)
+            runtime.coordinator.async_update_listeners()
+            return self.json_message(str(error), 403)
+        runtime.store.paired_devices[data["device_id"]] = {
+            "credential": base64.b64encode(credential).decode(),
+            "claim_id": claim.get("grant_id"),
+            "entitlement_id": claim["entitlement_id"],
+            "entitlement_issued_at": claim["iat"],
+            "entitlement_jti": claim["jti"],
+            "installation_id": claim["installation_id"],
+            "app_public_key": data["app_public_key"],
+            "entitlement_expires_at": claim["expires_at"],
+            "revoked": False,
+            "used_nonces": [],
+        }
+        runtime.clear_pairing_qr()
+        await runtime.store.async_save()
+        runtime.coordinator.async_update_listeners()
         return self.json(
             {
-                "replica_id": store.data["replica_id"],
-                "server_cursor": store.data["cursor"],
-                "entitlement_expires_at": expires_at.isoformat().replace("+00:00", "Z"),
+                "paired": True,
+                "protocol": PROTOCOL_VERSION,
+                "replica_id": runtime.store.sync.replica_id,
+                "server_cursor": runtime.store.sync.cursor,
+                "entitlement_expires_at": claim["expires_at"],
             }
         )
 
 
 class SyncView(HomeAssistantView):
-    """Bidirectional operation-log synchronization."""
-
     url = "/api/shift_plus/{entry_id}/sync"
     name = "api:shift_plus:sync"
     requires_auth = False
 
     async def post(self, request: web.Request, entry_id: str) -> web.Response:
-        runtime = _runtime(request, entry_id)
-        store: ShiftPlusStore = runtime["store"]
-        body, data = await _json(request)
+        runtime = _runtime(request.app["hass"], entry_id)
+        async with runtime.store.transport_lock:
+            return await self._post(request, entry_id)
+
+    async def _post(self, request: web.Request, entry_id: str) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
         device_id = request.headers.get("X-Shift-Plus-Device", "")
-        _authenticate(request, store, device_id, body)
-        if data.get("protocol") != 1:
-            raise web.HTTPBadRequest(text="Unsupported protocol")
-        operations = data.get("operations", [])
-        cursor = data.get("cursor", 0)
-        if (
-            not isinstance(operations, list)
-            or not isinstance(cursor, int)
-            or cursor < 0
-        ):
-            raise web.HTTPBadRequest(text="Invalid sync envelope")
+        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
+        signature = request.headers.get("X-Shift-Plus-Signature", "")
+        device = runtime.store.paired_devices.get(device_id)
+        if not device or device.get("revoked"):
+            return self.json_message("Unknown or revoked device", 401)
+        if not entitlement_is_active(device):
+            return self.json_message("Premium entitlement expired", 403)
+        used_nonces: list[str] = device.setdefault("used_nonces", [])
+        if not nonce or nonce in used_nonces:
+            return self.json_message("Replayed request", 409)
+        body = await request.read()
+        credential = base64.b64decode(device["credential"])
+        if not verify_request(credential, nonce, body, signature):
+            return self.json_message("Invalid request signature", 401)
         try:
-            result = await store.sync(operations, cursor)
-        except ValueError as err:
-            raise web.HTTPBadRequest(text=str(err)) from err
-        return self.json(result)
-
-
-class EntitlementView(HomeAssistantView):
-    """Refresh a device's Premium entitlement."""
-
-    url = "/api/shift_plus/{entry_id}/devices/{device_id}/entitlement"
-    name = "api:shift_plus:entitlement"
-    requires_auth = False
-
-    async def post(
-        self, request: web.Request, entry_id: str, device_id: str
-    ) -> web.Response:
-        runtime = _runtime(request, entry_id)
-        store: ShiftPlusStore = runtime["store"]
-        body, data = await _json(request)
-        device = _authenticate(request, store, device_id, body, allow_expired=True)
+            data = json.loads(body)
+            if int(data["protocol"]) != PROTOCOL_VERSION:
+                return self.json_message("Unsupported protocol", 426)
+            replica_id = str(data["replica_id"])
+            phone_cursor = int(data.get("cursor", 0))
+            records = [
+                ReplicatedRecord.from_dict(item) for item in data.get("operations", [])
+            ]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            return self.json_message(f"Invalid sync request: {error}", 400)
+        used_nonces.append(nonce)
+        del used_nonces[:-500]
+        store = runtime.store
+        previous_success = store.last_successful_sync
+        requested_at = store.sync_requested_at
         try:
-            claims = verify_entitlement(
-                str(data["entitlement"]),
-                _verification_key(runtime),
-                entry_id=entry_id,
-                session_id=f"renew:{device_id}",
-                device_id=device_id,
-                app_public_key=device["app_public_key"],
-            )
-            expires_at = _expires_at(claims)
-            await store.update_entitlement(
-                device_id,
-                expires_at,
-                entitlement_id=claims["entitlement_id"],
-                issued_at=float(claims["iat"]),
-                jti=claims["jti"],
-            )
-        except EntitlementError as err:
-            raise web.HTTPForbidden(text=str(err)) from err
-        except (KeyError, TypeError, ValueError) as err:
-            raise web.HTTPBadRequest(text="Invalid entitlement") from err
+            store.sync_status = "processing"
+            cursor_before = store.sync.cursor
+            outcomes = await store.async_merge(records, replica_id, phone_cursor)
+            changes = store.sync.changes_after(phone_cursor)
+            store.sync_details = {
+                "received_operations": len(records),
+                "applied_operations": store.sync.cursor - cursor_before,
+                "conflicts": len(store.sync.conflicts),
+            }
+            # Force a completed calculation, not a debounced refresh request.
+            await runtime.coordinator.async_refresh()
+            if not runtime.coordinator.last_update_success:
+                raise RuntimeError("Coordinator refresh failed")
+            store.last_successful_sync = datetime.now(UTC).isoformat()
+            store.sync_requested_at = None
+            store.sync_status = "completed"
+            await store.async_save()
+            runtime.coordinator.async_update_listeners()
+        except Exception:
+            store.last_successful_sync = previous_success
+            store.sync_requested_at = requested_at
+            store.sync_status = "processing_or_refresh_failed"
+            try:
+                await store.async_save()
+            except OSError:
+                _LOGGER.exception("Unable to persist failed sync status")
+            _LOGGER.warning("Shift + sync did not complete storage and state refresh")
+            return self.json_message("Sync processing or state refresh failed", 503)
         return self.json(
-            {"entitlement_expires_at": expires_at.isoformat().replace("+00:00", "Z")}
+            {
+                "protocol": PROTOCOL_VERSION,
+                "replica_id": runtime.store.sync.replica_id,
+                "server_cursor": runtime.store.sync.cursor,
+                "outcomes": outcomes,
+                "changes": changes,
+                "conflicts": list(runtime.store.sync.conflicts),
+                "manual_sync_requested_at": requested_at,
+            }
         )
 
 
-class RevokeView(HomeAssistantView):
-    """Allow a device to revoke itself."""
-
-    url = "/api/shift_plus/{entry_id}/devices/{device_id}/self-revoke"
-    name = "api:shift_plus:self_revoke"
-    requires_auth = False
-
-    async def post(
-        self, request: web.Request, entry_id: str, device_id: str
-    ) -> web.Response:
-        store: ShiftPlusStore = _runtime(request, entry_id)["store"]
-        body, _ = await _json(request)
-        _authenticate(request, store, device_id, body)
-        await store.revoke(device_id)
-        return self.json({"revoked": True})
-
-
 class EndpointVerificationView(HomeAssistantView):
-    """Prove identity before the app stores an alternative URL."""
+    """Prove this route reaches the same already-paired integration instance."""
 
     url = "/api/shift_plus/{entry_id}/endpoint-verification"
-    name = "api:shift_plus:endpoint_verification"
+    name = "api:shift_plus:endpoint-verification"
     requires_auth = False
 
     async def post(self, request: web.Request, entry_id: str) -> web.Response:
-        store: ShiftPlusStore = _runtime(request, entry_id)["store"]
-        _, data = await _json(request)
-        device_id = str(data.get("device_id", ""))
-        challenge = str(data.get("challenge", ""))
-        device = store.device(device_id)
-        if device is None or not challenge:
-            raise web.HTTPUnauthorized()
+        runtime = _runtime(request.app["hass"], entry_id)
+        try:
+            data = await request.json()
+            device_id = str(data["device_id"])
+            challenge = str(data["challenge"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return self.json_message("Invalid verification challenge", 400)
+        if len(challenge) < 32 or len(challenge) > 200:
+            return self.json_message("Invalid verification challenge", 400)
+        device = runtime.store.paired_devices.get(device_id)
+        if not device or device.get("revoked"):
+            return self.json_message("Unknown or revoked device", 401)
+        credential = base64.b64decode(device["credential"])
         return self.json(
             {
-                "protocol": 1,
+                "protocol": PROTOCOL_VERSION,
                 "entry_id": entry_id,
                 "device_id": device_id,
                 "challenge": challenge,
-                "proof": endpoint_proof(
-                    b64decode(device["credential"]), entry_id, device_id, challenge
+                "proof": sign_endpoint_challenge(
+                    credential,
+                    entry_id=entry_id,
+                    device_id=device_id,
+                    challenge=challenge,
                 ),
             }
         )
 
 
-VIEWS = (
-    PairingPageView,
-    PairingCompleteView,
-    SyncView,
-    EntitlementView,
-    RevokeView,
-    EndpointVerificationView,
-)
+class UnpairView(HomeAssistantView):
+    url = "/api/shift_plus/{entry_id}/devices/{device_id}"
+    name = "api:shift_plus:devices:revoke"
+    requires_auth = True
+
+    async def delete(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
+        device = runtime.store.paired_devices.get(device_id)
+        if device is None:
+            raise web.HTTPNotFound()
+        device["revoked"] = True
+        device["credential"] = ""
+        runtime.store.sync.replica_acks.pop(device_id, None)
+        await runtime.store.async_save()
+        return self.json({"revoked": True})
+
+
+class EntitlementRefreshView(HomeAssistantView):
+    url = "/api/shift_plus/{entry_id}/devices/{device_id}/entitlement"
+    name = "api:shift_plus:devices:entitlement"
+    requires_auth = False
+
+    async def post(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
+        async with runtime.store.transport_lock:
+            return await self._post(request, entry_id, device_id)
+
+    async def _post(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
+        device = runtime.store.paired_devices.get(device_id)
+        if not device or device.get("revoked"):
+            return self.json_message("Unknown or revoked device", 401)
+        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
+        signature = request.headers.get("X-Shift-Plus-Signature", "")
+        used_nonces: list[str] = device.setdefault("used_nonces", [])
+        if not nonce or nonce in used_nonces:
+            return self.json_message("Replayed request", 409)
+        body = await request.read()
+        credential = base64.b64decode(device["credential"])
+        if not verify_request(credential, nonce, body, signature):
+            return self.json_message("Invalid request signature", 401)
+        try:
+            data = json.loads(body)
+            claim = runtime.pairing.verifier.verify(
+                data["entitlement"],
+                ha_instance_id=entry_id,
+                pairing_session_id=f"renew:{device_id}",
+                device_id=device_id,
+                app_public_key=device["app_public_key"],
+            )
+            validate_renewal(device, claim)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            reason = (
+                str(error)
+                if isinstance(error, EntitlementError)
+                else "Malformed entitlement"
+            )
+            _LOGGER.warning("Shift + entitlement renewal rejected: %s", reason)
+            runtime.store.sync_status = "entitlement_rejected"
+            await runtime.store.async_save()
+            runtime.coordinator.async_update_listeners()
+            return self.json_message(reason, 403)
+        previous_device = deepcopy(device)
+        previous_status = runtime.store.sync_status
+        used_nonces.append(nonce)
+        del used_nonces[:-500]
+        device["entitlement_id"] = claim["entitlement_id"]
+        device["installation_id"] = claim["installation_id"]
+        device["entitlement_issued_at"] = claim["iat"]
+        device["entitlement_jti"] = claim["jti"]
+        runtime.store.sync_status = "entitlement_valid"
+        device["claim_id"] = claim.get("grant_id")
+        device["entitlement_expires_at"] = claim["expires_at"]
+        try:
+            await runtime.store.async_save()
+        except OSError:
+            device.clear()
+            device.update(previous_device)
+            runtime.store.sync_status = previous_status
+            _LOGGER.exception("Unable to persist entitlement renewal")
+            return self.json_message("Entitlement renewal could not be stored", 503)
+        runtime.coordinator.async_update_listeners()
+        return self.json({"entitlement_expires_at": claim["expires_at"]})
+
+
+class SelfRevokeView(HomeAssistantView):
+    url = "/api/shift_plus/{entry_id}/devices/{device_id}/self-revoke"
+    name = "api:shift_plus:devices:self-revoke"
+    requires_auth = False
+
+    async def post(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
+        device = runtime.store.paired_devices.get(device_id)
+        if not device or device.get("revoked"):
+            return self.json_message("Unknown or revoked device", 401)
+        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
+        signature = request.headers.get("X-Shift-Plus-Signature", "")
+        body = await request.read()
+        credential = base64.b64decode(device["credential"])
+        if not nonce or not verify_request(credential, nonce, body, signature):
+            return self.json_message("Invalid request signature", 401)
+        device["revoked"] = True
+        device["credential"] = ""
+        runtime.store.sync.replica_acks.pop(device_id, None)
+        await runtime.store.async_save()
+        return self.json({"revoked": True})
+
+
+def _runtime(hass: HomeAssistant, entry_id: str) -> Any:
+    try:
+        return hass.data[DOMAIN][entry_id]
+    except KeyError as error:
+        raise web.HTTPNotFound() from error
+
+
+def register_views(hass: HomeAssistant) -> None:
+    hass.http.register_view(PairingStartView())
+    hass.http.register_view(PairingCompleteView())
+    hass.http.register_view(SyncView())
+    hass.http.register_view(EndpointVerificationView())
+    hass.http.register_view(UnpairView())
+    hass.http.register_view(SelfRevokeView())
+    hass.http.register_view(EntitlementRefreshView())

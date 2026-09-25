@@ -1,0 +1,142 @@
+{
+  "sync": {
+    "replica_id": "ha-existing",
+    "counter": 4,
+    "cursor": 4,
+    "records": {
+      "overtime:saved-overtime": {
+        "record_type": "overtime",
+        "record_id": "saved-overtime",
+        "payload": {
+          "date": "2026-09-19",
+          "start_minutes": 480,
+          "finish_minutes": 840
+        },
+        "version": {
+          "phone-existing": 1
+        },
+        "origin_replica_id": "phone-existing",
+        "origin_counter": 1,
+        "tombstone": false,
+        "operation_id": "operation-1"
+      },
+      "annual_leave:saved-annual_leave": {
+        "record_type": "annual_leave",
+        "record_id": "saved-annual_leave",
+        "payload": {
+          "start_date": "2026-10-01",
+          "number_of_days": 2,
+          "day_portion": "fullDay"
+        },
+        "version": {
+          "phone-existing": 2
+        },
+        "origin_replica_id": "phone-existing",
+        "origin_counter": 2,
+        "tombstone": false,
+        "operation_id": "operation-2"
+      },
+      "active_configuration:saved-active_configuration": {
+        "record_type": "active_configuration",
+        "record_id": "saved-active_configuration",
+        "payload": {
+          "active_roster_id": "non-core-2",
+          "active_unit_id": "unit-b"
+        },
+        "version": {
+          "phone-existing": 3
+        },
+        "origin_replica_id": "phone-existing",
+        "origin_counter": 3,
+        "tombstone": false,
+        "operation_id": "operation-3"
+      }
+    },
+    "journal": [
+      {
+        "cursor": 1,
+        "record": {
+          "record_type": "overtime",
+          "record_id": "saved-overtime",
+          "payload": {
+            "date": "2026-09-19",
+            "start_minutes": 480,
+            "finish_minutes": 840
+          },
+          "version": {
+            "phone-existing": 1
+          },
+          "origin_replica_id": "phone-existing",
+          "origin_counter": 1,
+          "tombstone": false,
+          "operation_id": "operation-1"
+        }
+      },
+      {
+        "cursor": 2,
+        "record": {
+          "record_type": "annual_leave",
+          "record_id": "saved-annual_leave",
+          "payload": {
+            "start_date": "2026-10-01",
+            "number_of_days": 2,
+            "day_portion": "fullDay"
+          },
+          "version": {
+            "phone-existing": 2
+          },
+          "origin_replica_id": "phone-existing",
+          "origin_counter": 2,
+          "tombstone": false,
+          "operation_id": "operation-2"
+        }
+      },
+      {
+        "cursor": 3,
+        "record": {
+          "record_type": "active_configuration",
+          "record_id": "saved-active_configuration",
+          "payload": {
+            "active_roster_id": "non-core-2",
+            "active_unit_id": "unit-b"
+          },
+          "version": {
+            "phone-existing": 3
+          },
+          "origin_replica_id": "phone-existing",
+          "origin_counter": 3,
+          "tombstone": false,
+          "operation_id": "operation-3"
+        }
+      }
+    ],
+    "seen_operations": [
+      "operation-1",
+      "operation-2",
+      "operation-3"
+    ],
+    "conflicts": {},
+    "replica_acks": {
+      "phone-existing": 0
+    }
+  },
+  "paired_devices": {
+    "phone-existing": {
+      "credential": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "claim_id": "legacy-grant",
+      "installation_id": "installation-existing",
+      "app_public_key": "synthetic-public-key",
+      "entitlement_expires_at": "2026-01-01T00:00:00+00:00",
+      "revoked": false,
+      "used_nonces": [
+        "legacy-nonce"
+      ],
+      "future_device_field": "preserved"
+    }
+  },
+  "last_successful_sync": "2026-01-01T00:00:00+00:00",
+  "sync_requested_at": null,
+  "future_top_level_field": {
+    "preserve": true
+  }
+}

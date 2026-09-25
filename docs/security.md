@@ -1,26 +1,18 @@
-# Security model and release checklist
+# Security model
 
-## Stored data
+Shift + 5.1.0 retains the production 5.0.1 security architecture.
 
-Home Assistant stores its X25519 private key, derived device credentials,
-entitlement expiries and synchronized records in its normal `.storage` area.
-That directory must be protected as part of the Home Assistant installation.
+- Three-part JWT/JWS with EdDSA and Ed25519 verification
+- Issuer, audience, Android package, Premium product, active status and token-use validation
+- Issued-at, not-before and expiry validation
+- HA entry, pairing session, installation, device and app-public-key binding
+- Entitlement identity and token freshness checks during renewal
+- Short-lived, single-use QR pairing
+- X25519 key agreement and HKDF-SHA256 credential derivation
+- HMAC-SHA256 authenticated requests
+- Nonce replay protection
+- Durable HA credential storage
 
-The repository must never contain mobile signing keys, `key.properties`, Google
-Play credentials, entitlement signing keys, Home Assistant tokens, `.storage`
-data or configuration secrets.
+The legacy Build 68 two-part `payload.signature` grant is rejected. The entitlement signing private key, Google Play credentials and purchase tokens are never stored in this repository.
 
-## Before public release
-
-- Deploy the private entitlement backend and map its production HTTPS hostname.
-- Confirm the bundled production Ed25519 **public** key matches the entitlement
-  service key endpoint.
-- Verify entitlement issuance, pairing, renewal and expiry against the real app.
-- Exercise pairing and sync against supported Home Assistant versions.
-- Complete an independent protocol/security review.
-- Pass unit tests, Ruff, HACS validation and Hassfest.
-- Keep the bundled integration brand assets current.
-- Create a signed/tagged GitHub release only after approval.
-
-The Ed25519 private signing key belongs only in the entitlement service and must
-never be copied into Home Assistant, the app, or this repository.
+The 5.1.0 storage migration copies an already-derived pairing credential without exposing or regenerating it. Public 5.0.1 did not retain installation ID; the first valid, fully bound production renewal establishes that additive field, after which installation changes are rejected.
