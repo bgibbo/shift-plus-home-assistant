@@ -8,7 +8,7 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/bgibbo/shift-plus-home-assistant/issues",
-  "requirements": ["cryptography>=42.0", "segno==1.6.6"],
+  "requirements": ["segno==1.6.6"],
   "single_config_entry": true,
-  "version": "5.1.0"
+  "version": "5.1.1"
 }
