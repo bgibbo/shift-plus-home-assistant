@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import time
+from asyncio import Lock
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -12,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from custom_components.shift_plus.api import EndpointVerificationView
+from custom_components.shift_plus.api import EndpointVerificationView, SelfRevokeView
 from custom_components.shift_plus.const import DOMAIN
 from custom_components.shift_plus.security import (
     EntitlementError,
@@ -146,9 +148,19 @@ def test_pairing_derives_same_credential_without_transmitting_it() -> None:
         info=b"shift-plus-sync:ha-one:phone-one",
     ).derive(shared)
     assert app_credential == server_credential
-    signature = sign_request(app_credential, "nonce", b"payload")
-    assert verify_request(server_credential, "nonce", b"payload", signature)
-    assert not verify_request(server_credential, "nonce", b"changed", signature)
+    arguments = {
+        "operation": "sync",
+        "entry_id": "ha-one",
+        "device_id": "phone-one",
+        "nonce": "nonce",
+        "timestamp": 123,
+        "body": b"payload",
+    }
+    signature = sign_request(app_credential, **arguments)
+    assert verify_request(server_credential, signature=signature, **arguments)
+    assert not verify_request(
+        server_credential, signature=signature, **{**arguments, "body": b"changed"}
+    )
 
 
 def test_pairing_qr_has_absolute_expiry_and_is_single_use() -> None:
@@ -263,3 +275,130 @@ async def test_endpoint_verification_view_proves_only_existing_pairing() -> None
 
     rejected = await view.post(Request("other-phone"), "ha-one")
     assert rejected.status == 401
+
+
+@pytest.mark.asyncio
+async def test_endpoint_proof_cannot_authorize_self_revoke() -> None:
+    credential = bytes(range(32))
+    device = {
+        "credential": base64.b64encode(credential).decode(),
+        "revoked": False,
+        "used_nonces": [],
+    }
+
+    class Store:
+        paired_devices = {"phone-one": device}
+        transport_lock = Lock()
+        sync = SimpleNamespace(replica_acks={})
+
+        async def async_save(self):
+            return None
+
+    runtime = SimpleNamespace(store=Store())
+    hass = SimpleNamespace(data={DOMAIN: {"ha-one": runtime}})
+    challenge = "fresh-random-challenge-with-at-least-32-characters"
+    forged_body = f"ha-one\nphone-one\n{challenge}".encode()
+    endpoint_proof = sign_endpoint_challenge(
+        credential,
+        entry_id="ha-one",
+        device_id="phone-one",
+        challenge=challenge,
+    )
+
+    class ForgedRequest:
+        app = {"hass": hass}
+        headers = {
+            "X-Shift-Plus-Nonce": "shift-plus-endpoint-verification",
+            "X-Shift-Plus-Timestamp": str(int(time.time())),
+            "X-Shift-Plus-Signature": endpoint_proof,
+        }
+
+        async def read(self):
+            return forged_body
+
+    response = await SelfRevokeView().post(ForgedRequest(), "ha-one", "phone-one")
+    assert response.status == 401
+    assert device["revoked"] is False
+    assert device["credential"]
+
+
+@pytest.mark.asyncio
+async def test_self_revoke_requires_bound_json_fresh_nonce_and_signature() -> None:
+    credential = bytes(range(32))
+    device = {
+        "credential": base64.b64encode(credential).decode(),
+        "revoked": False,
+        "used_nonces": [],
+    }
+    saves = 0
+
+    class Store:
+        paired_devices = {"phone-one": device}
+        transport_lock = Lock()
+        sync = SimpleNamespace(replica_acks={"phone-one": 4})
+
+        async def async_save(self):
+            nonlocal saves
+            saves += 1
+
+    runtime = SimpleNamespace(store=Store())
+    hass = SimpleNamespace(data={DOMAIN: {"ha-one": runtime}})
+    body = json.dumps(
+        {
+            "operation": "self-revoke",
+            "entry_id": "ha-one",
+            "device_id": "phone-one",
+        },
+        separators=(",", ":"),
+    ).encode()
+    timestamp = int(time.time())
+    nonce = "secure-random-nonce"
+    signature = sign_request(
+        credential,
+        operation="self-revoke",
+        entry_id="ha-one",
+        device_id="phone-one",
+        nonce=nonce,
+        timestamp=timestamp,
+        body=body,
+    )
+
+    class Request:
+        app = {"hass": hass}
+        headers = {
+            "X-Shift-Plus-Nonce": nonce,
+            "X-Shift-Plus-Timestamp": str(timestamp),
+            "X-Shift-Plus-Signature": signature,
+        }
+
+        async def read(self):
+            return body
+
+    response = await SelfRevokeView().post(Request(), "ha-one", "phone-one")
+    assert response.status == 200
+    assert device["revoked"] is True
+    assert device["credential"] == ""
+    assert "phone-one" not in runtime.store.sync.replica_acks
+    assert saves == 1
+
+
+def test_request_signatures_are_bound_to_operation_identity_and_time() -> None:
+    credential = bytes(range(32))
+    arguments = {
+        "operation": "sync",
+        "entry_id": "ha-one",
+        "device_id": "phone-one",
+        "nonce": "nonce-one",
+        "timestamp": 123,
+        "body": b"{}",
+    }
+    signature = sign_request(credential, **arguments)
+    for field, replacement in (
+        ("operation", "self-revoke"),
+        ("entry_id", "ha-two"),
+        ("device_id", "phone-two"),
+        ("nonce", "nonce-two"),
+        ("timestamp", 124),
+    ):
+        changed = {**arguments, field: replacement}
+        assert not verify_request(credential, signature=signature, **changed)

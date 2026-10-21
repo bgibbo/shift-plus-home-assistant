@@ -65,7 +65,9 @@ class PairButton(ShiftPlusEntity, ButtonEntity):
         )
         payload = self.runtime.pairing.begin(base_url)
         self.runtime.pairing_payload = payload
-        self.runtime.pairing_qr = make_qr(payload)
+        self.runtime.pairing_qr = await self.hass.async_add_executor_job(
+            make_qr, payload
+        )
         self.runtime.pairing_qr_generated_at = datetime.now(UTC)
         self.runtime.pairing_qr_expires_at = datetime.fromisoformat(
             str(payload["expires_at"])

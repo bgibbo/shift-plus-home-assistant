@@ -4,7 +4,7 @@ VERSION = "5.1.1"
 STORAGE_VERSION = 1
 STORAGE_KEY = "shift_plus.storage"
 LEGACY_PUBLIC_STORAGE_KEY = "shift_plus"
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 PLATFORMS = ["sensor", "binary_sensor", "calendar", "button", "image"]
 
 CONF_ROSTER_ID = "roster_id"

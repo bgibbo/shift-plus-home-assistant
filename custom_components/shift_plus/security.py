@@ -20,6 +20,8 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
 )
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from .const import PROTOCOL_VERSION
+
 
 def b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
@@ -156,7 +158,7 @@ class PairingManager:
             serialization.Encoding.Raw, serialization.PublicFormat.Raw
         )
         return {
-            "protocol": 1,
+            "protocol": PROTOCOL_VERSION,
             "entry_id": self.ha_instance_id,
             "ha_instance_id": self.ha_instance_id,
             "base_url": base_url.rstrip("/"),
@@ -200,24 +202,65 @@ class PairingManager:
         return claim, credential
 
 
-def sign_request(credential: bytes, nonce: str, body: bytes) -> str:
-    return b64url(
-        hmac.new(credential, nonce.encode() + b"\n" + body, hashlib.sha256).digest()
+def sign_request(
+    credential: bytes,
+    *,
+    operation: str,
+    entry_id: str,
+    device_id: str,
+    nonce: str,
+    timestamp: int,
+    body: bytes,
+) -> str:
+    """Sign a request in a versioned, operation-specific authentication domain."""
+    message = b"\n".join(
+        (
+            b"shift-plus-authenticated-request-v2",
+            operation.encode(),
+            entry_id.encode(),
+            device_id.encode(),
+            nonce.encode(),
+            str(timestamp).encode(),
+            body,
+        )
     )
+    return b64url(hmac.new(credential, message, hashlib.sha256).digest())
 
 
-def verify_request(credential: bytes, nonce: str, body: bytes, signature: str) -> bool:
-    return hmac.compare_digest(sign_request(credential, nonce, body), signature)
+def verify_request(
+    credential: bytes,
+    *,
+    operation: str,
+    entry_id: str,
+    device_id: str,
+    nonce: str,
+    timestamp: int,
+    body: bytes,
+    signature: str,
+) -> bool:
+    expected = sign_request(
+        credential,
+        operation=operation,
+        entry_id=entry_id,
+        device_id=device_id,
+        nonce=nonce,
+        timestamp=timestamp,
+        body=body,
+    )
+    return hmac.compare_digest(expected, signature)
 
 
 def sign_endpoint_challenge(
     credential: bytes, *, entry_id: str, device_id: str, challenge: str
 ) -> str:
     """Prove an endpoint belongs to an existing pairing without exposing its key."""
+    proof_key = hmac.new(
+        credential, b"shift-plus-key-derivation\nendpoint-proof-v2", hashlib.sha256
+    ).digest()
     message = (
-        f"shift-plus-endpoint-verification\n{entry_id}\n{device_id}\n{challenge}"
+        f"shift-plus-endpoint-proof-v2\n{entry_id}\n{device_id}\n{challenge}"
     ).encode()
-    return b64url(hmac.new(credential, message, hashlib.sha256).digest())
+    return b64url(hmac.new(proof_key, message, hashlib.sha256).digest())
 
 
 def entitlement_is_active(device: dict[str, Any], now: datetime | None = None) -> bool:

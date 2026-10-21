@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import time
 from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
@@ -25,6 +26,60 @@ from .security import (
 from .sync import ReplicatedRecord
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_CLOCK_SKEW_SECONDS = 300
+_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024
+
+
+def _error(message: str, status: int) -> web.Response:
+    return web.json_response({"message": message}, status=status)
+
+
+async def _authenticated_body(
+    request: web.Request,
+    *,
+    entry_id: str,
+    device_id: str,
+    device: dict[str, Any],
+    operation: str,
+) -> tuple[bytes | None, str | None, web.Response | None]:
+    """Validate a domain-separated request with bounded age and replay state."""
+    nonce = request.headers.get("X-Shift-Plus-Nonce", "")
+    timestamp_text = request.headers.get("X-Shift-Plus-Timestamp", "")
+    signature = request.headers.get("X-Shift-Plus-Signature", "")
+    try:
+        timestamp = int(timestamp_text)
+    except ValueError:
+        return None, None, _error("Invalid request timestamp", 400)
+    if abs(int(time.time()) - timestamp) > _MAX_CLOCK_SKEW_SECONDS:
+        return None, None, _error("Stale request", 401)
+    used_nonces: list[str] = device.setdefault("used_nonces", [])
+    if not nonce or len(nonce) > 200 or nonce in used_nonces:
+        return None, None, _error("Replayed request", 409)
+    body = await request.read()
+    if len(body) > _MAX_REQUEST_BODY_BYTES:
+        return None, None, _error("Request body too large", 413)
+    try:
+        credential = base64.b64decode(device["credential"], validate=True)
+    except (KeyError, ValueError):
+        return None, None, _error("Invalid device credential", 401)
+    if not verify_request(
+        credential,
+        operation=operation,
+        entry_id=entry_id,
+        device_id=device_id,
+        nonce=nonce,
+        timestamp=timestamp,
+        body=body,
+        signature=signature,
+    ):
+        return None, None, _error("Invalid request signature", 401)
+    return body, nonce, None
+
+
+def _record_nonce(device: dict[str, Any], nonce: str) -> None:
+    used_nonces: list[str] = device.setdefault("used_nonces", [])
+    used_nonces.append(nonce)
+    del used_nonces[:-500]
 
 
 class PairingStartView(HomeAssistantView):
@@ -42,7 +97,9 @@ class PairingStartView(HomeAssistantView):
         base_url = str(data.get("base_url") or request.url.origin())
         payload = runtime.pairing.begin(base_url)
         runtime.pairing_payload = payload
-        runtime.pairing_qr = make_qr(payload)
+        runtime.pairing_qr = await request.app["hass"].async_add_executor_job(
+            make_qr, payload
+        )
         runtime.pairing_qr_generated_at = datetime.now(UTC)
         runtime.pairing_qr_expires_at = datetime.fromisoformat(
             str(payload["expires_at"])
@@ -113,20 +170,21 @@ class SyncView(HomeAssistantView):
     async def _post(self, request: web.Request, entry_id: str) -> web.Response:
         runtime = _runtime(request.app["hass"], entry_id)
         device_id = request.headers.get("X-Shift-Plus-Device", "")
-        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
-        signature = request.headers.get("X-Shift-Plus-Signature", "")
         device = runtime.store.paired_devices.get(device_id)
         if not device or device.get("revoked"):
             return self.json_message("Unknown or revoked device", 401)
         if not entitlement_is_active(device):
             return self.json_message("Premium entitlement expired", 403)
-        used_nonces: list[str] = device.setdefault("used_nonces", [])
-        if not nonce or nonce in used_nonces:
-            return self.json_message("Replayed request", 409)
-        body = await request.read()
-        credential = base64.b64decode(device["credential"])
-        if not verify_request(credential, nonce, body, signature):
-            return self.json_message("Invalid request signature", 401)
+        body, nonce, error = await _authenticated_body(
+            request,
+            entry_id=entry_id,
+            device_id=device_id,
+            device=device,
+            operation="sync",
+        )
+        if error is not None:
+            return error
+        assert body is not None and nonce is not None
         try:
             data = json.loads(body)
             if int(data["protocol"]) != PROTOCOL_VERSION:
@@ -138,8 +196,7 @@ class SyncView(HomeAssistantView):
             ]
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             return self.json_message(f"Invalid sync request: {error}", 400)
-        used_nonces.append(nonce)
-        del used_nonces[:-500]
+        _record_nonce(device, nonce)
         store = runtime.store
         previous_success = store.last_successful_sync
         requested_at = store.sync_requested_at
@@ -205,7 +262,10 @@ class EndpointVerificationView(HomeAssistantView):
         device = runtime.store.paired_devices.get(device_id)
         if not device or device.get("revoked"):
             return self.json_message("Unknown or revoked device", 401)
-        credential = base64.b64decode(device["credential"])
+        try:
+            credential = base64.b64decode(device["credential"], validate=True)
+        except (KeyError, ValueError):
+            return self.json_message("Invalid device credential", 401)
         return self.json(
             {
                 "protocol": PROTOCOL_VERSION,
@@ -260,15 +320,16 @@ class EntitlementRefreshView(HomeAssistantView):
         device = runtime.store.paired_devices.get(device_id)
         if not device or device.get("revoked"):
             return self.json_message("Unknown or revoked device", 401)
-        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
-        signature = request.headers.get("X-Shift-Plus-Signature", "")
-        used_nonces: list[str] = device.setdefault("used_nonces", [])
-        if not nonce or nonce in used_nonces:
-            return self.json_message("Replayed request", 409)
-        body = await request.read()
-        credential = base64.b64decode(device["credential"])
-        if not verify_request(credential, nonce, body, signature):
-            return self.json_message("Invalid request signature", 401)
+        body, nonce, error = await _authenticated_body(
+            request,
+            entry_id=entry_id,
+            device_id=device_id,
+            device=device,
+            operation="entitlement-refresh",
+        )
+        if error is not None:
+            return error
+        assert body is not None and nonce is not None
         try:
             data = json.loads(body)
             claim = runtime.pairing.verifier.verify(
@@ -292,8 +353,7 @@ class EntitlementRefreshView(HomeAssistantView):
             return self.json_message(reason, 403)
         previous_device = deepcopy(device)
         previous_status = runtime.store.sync_status
-        used_nonces.append(nonce)
-        del used_nonces[:-500]
+        _record_nonce(device, nonce)
         device["entitlement_id"] = claim["entitlement_id"]
         device["installation_id"] = claim["installation_id"]
         device["entitlement_issued_at"] = claim["iat"]
@@ -322,15 +382,37 @@ class SelfRevokeView(HomeAssistantView):
         self, request: web.Request, entry_id: str, device_id: str
     ) -> web.Response:
         runtime = _runtime(request.app["hass"], entry_id)
+        async with runtime.store.transport_lock:
+            return await self._post(request, entry_id, device_id)
+
+    async def _post(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.Response:
+        runtime = _runtime(request.app["hass"], entry_id)
         device = runtime.store.paired_devices.get(device_id)
         if not device or device.get("revoked"):
             return self.json_message("Unknown or revoked device", 401)
-        nonce = request.headers.get("X-Shift-Plus-Nonce", "")
-        signature = request.headers.get("X-Shift-Plus-Signature", "")
-        body = await request.read()
-        credential = base64.b64decode(device["credential"])
-        if not nonce or not verify_request(credential, nonce, body, signature):
-            return self.json_message("Invalid request signature", 401)
+        body, nonce, error = await _authenticated_body(
+            request,
+            entry_id=entry_id,
+            device_id=device_id,
+            device=device,
+            operation="self-revoke",
+        )
+        if error is not None:
+            return error
+        assert body is not None and nonce is not None
+        try:
+            data = json.loads(body)
+            if data != {
+                "operation": "self-revoke",
+                "entry_id": entry_id,
+                "device_id": device_id,
+            }:
+                raise ValueError
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return self.json_message("Invalid self-revocation request", 400)
+        _record_nonce(device, nonce)
         device["revoked"] = True
         device["credential"] = ""
         runtime.store.sync.replica_acks.pop(device_id, None)

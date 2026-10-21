@@ -73,7 +73,11 @@ class RuntimeData:
 
 class ShiftPlusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, store: ShiftPlusStore
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        store: ShiftPlusStore,
+        engine: RosterEngine,
     ) -> None:
         super().__init__(
             hass,
@@ -83,7 +87,7 @@ class ShiftPlusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.entry = entry
         self.store = store
-        self.engine = RosterEngine()
+        self.engine = engine
         self.time_zone = dt_util.get_time_zone(hass.config.time_zone) or UTC
 
     @property

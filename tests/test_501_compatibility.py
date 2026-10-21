@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import time
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -147,15 +148,32 @@ def token(key, values):
     return f"{message}.{b64url(key.sign(message.encode()))}"
 
 
-def request(runtime, body, nonce="request-one", bad_signature=False):
+def request(
+    runtime,
+    body,
+    nonce="request-one",
+    bad_signature=False,
+    operation="sync",
+    timestamp=None,
+):
     raw = json.dumps(body).encode()
     device = runtime.store.paired_devices["phone-existing"]
-    signature = sign_request(base64.b64decode(device["credential"]), nonce, raw)
+    timestamp = timestamp or int(time.time())
+    signature = sign_request(
+        base64.b64decode(device["credential"]),
+        operation=operation,
+        entry_id="entry-existing",
+        device_id="phone-existing",
+        nonce=nonce,
+        timestamp=timestamp,
+        body=raw,
+    )
     return SimpleNamespace(
         app={"hass": runtime.hass},
         headers={
             "X-Shift-Plus-Device": "phone-existing",
             "X-Shift-Plus-Nonce": nonce,
+            "X-Shift-Plus-Timestamp": str(timestamp),
             "X-Shift-Plus-Signature": "bad" if bad_signature else signature,
         },
         read=AsyncMock(return_value=raw),
@@ -165,14 +183,17 @@ def request(runtime, body, nonce="request-one", bad_signature=False):
 
 async def renew(runtime, values=None, nonce="renew-one", key=None):
     req = request(
-        runtime, {"entitlement": token(key or runtime.key, values or claims())}, nonce
+        runtime,
+        {"entitlement": token(key or runtime.key, values or claims())},
+        nonce,
+        operation="entitlement-refresh",
     )
     return await EntitlementRefreshView().post(req, "entry-existing", "phone-existing")
 
 
 def sync_body():
     return {
-        "protocol": 1,
+        "protocol": 2,
         "replica_id": "phone-existing",
         "cursor": 0,
         "operations": [
@@ -276,7 +297,12 @@ async def test_wrong_claims_do_not_renew_or_advance_success(runtime, override):
 
 async def test_invalid_signature_and_legacy_token_rejected(runtime):
     assert (await renew(runtime, key=Ed25519PrivateKey.generate())).status == 403
-    req = request(runtime, {"entitlement": "legacy.payload"}, "legacy")
+    req = request(
+        runtime,
+        {"entitlement": "legacy.payload"},
+        "legacy",
+        operation="entitlement-refresh",
+    )
     assert (
         await EntitlementRefreshView().post(req, "entry-existing", "phone-existing")
     ).status == 403
@@ -298,6 +324,22 @@ async def test_renewal_replay_stale_identity_and_nonce_protection(runtime):
     assert (
         await renew(runtime, {**values, "iat": values["iat"] + 1, "jti": "next"}, "new")
     ).status == 200
+
+
+async def test_authenticated_request_timestamp_must_be_fresh(runtime):
+    before = deepcopy(runtime.store.paired_devices)
+    req = request(
+        runtime,
+        {"entitlement": token(runtime.key, claims())},
+        "old-request",
+        operation="entitlement-refresh",
+        timestamp=int(datetime.now(UTC).timestamp()) - 301,
+    )
+    response = await EntitlementRefreshView().post(
+        req, "entry-existing", "phone-existing"
+    )
+    assert response.status == 401
+    assert runtime.store.paired_devices == before
 
 
 async def test_expired_sync_and_bad_hmac_never_advance_success(runtime):

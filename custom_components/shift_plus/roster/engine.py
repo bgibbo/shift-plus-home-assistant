@@ -53,9 +53,8 @@ class Duty:
 class RosterEngine:
     """Evaluate built-in rosters from the Dart-generated shared definition."""
 
-    def __init__(self, definition_path: Path | None = None) -> None:
-        path = definition_path or Path(__file__).with_name("roster_definitions.v1.json")
-        payload = json.loads(path.read_text(encoding="utf-8"))
+    def __init__(self, definitions: dict[str, Any] | None = None) -> None:
+        payload = definitions if definitions is not None else self.load_definitions()
         if (
             payload.get("schema") != "ie.shiftplus.rosters"
             or payload.get("version") != 1
@@ -65,6 +64,17 @@ class RosterEngine:
         self._rosters: dict[str, dict[str, Any]] = {
             item["id"]: item for item in payload["rosters"]
         }
+
+    @staticmethod
+    def load_definitions(definition_path: Path | None = None) -> dict[str, Any]:
+        """Read and parse roster definitions.
+
+        Home Assistant callers must run this blocking operation in the executor.
+        Keeping it separate also makes setup failures explicit before the runtime is
+        registered.
+        """
+        path = definition_path or Path(__file__).with_name("roster_definitions.v1.json")
+        return json.loads(path.read_text(encoding="utf-8"))
 
     @property
     def roster_ids(self) -> tuple[str, ...]:

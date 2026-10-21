@@ -27,6 +27,7 @@ from .const import (
     SERVICE_UPDATE_OVERTIME,
 )
 from .coordinator import RuntimeData, ShiftPlusCoordinator
+from .roster.engine import RosterEngine
 from .security import EntitlementVerifier, PairingManager
 from .storage import ShiftPlusStore
 
@@ -46,7 +47,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _migrate_pairing_status_entity(hass, entry)
     store = ShiftPlusStore(hass, entry.entry_id)
     await store.async_load()
-    coordinator = ShiftPlusCoordinator(hass, entry, store)
+    definitions = await hass.async_add_executor_job(RosterEngine.load_definitions)
+    coordinator = ShiftPlusCoordinator(hass, entry, store, RosterEngine(definitions))
     pairing = PairingManager(
         entry.entry_id, EntitlementVerifier(ENTITLEMENT_PUBLIC_KEY)
     )
