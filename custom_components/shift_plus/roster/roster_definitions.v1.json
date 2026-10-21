@@ -24393,7 +24393,7 @@
     },
     {
       "id": "garda-staff",
-      "name": "Staff",
+      "name": "Office Staff",
       "type": "gardaStaff",
       "anchor_date": "2026-07-20",
       "cycle_length": 7,
