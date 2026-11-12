@@ -388,10 +388,14 @@ def _card_markers(runtime: RuntimeData, start: date, end: date) -> list[dict[str
     markers: list[dict[str, str]] = []
     for item in runtime.store.records("annual_leave"):
         first = date.fromisoformat(item["start_date"])
+        portion = str(item.get("day_portion", "fullDay"))
         for offset in range(int(item["number_of_days"])):
             day = first + timedelta(days=offset)
             if start <= day <= end:
-                markers.append({"date": day.isoformat(), "kind": "annual_leave"})
+                marker = {"date": day.isoformat(), "kind": "annual_leave"}
+                if portion in {"morning", "afternoon"}:
+                    marker["portion"] = portion
+                markers.append(marker)
     for item in runtime.store.records("overtime"):
         day = date.fromisoformat(item["date"])
         if start <= day <= end:

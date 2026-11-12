@@ -52,8 +52,9 @@ calendar_cell_size: spacious # compact, comfortable (default), spacious
 layout_density: compact # compact, comfortable (default), spacious
 ```
 
-Duty backgrounds identify Early, Late, Night and Rest. The yellow marker is
-annual leave, the purple marker is overtime, and the blue outline is today.
+Duty backgrounds use the Shift + Android standard palette for Early, Late,
+Night and Rest. The green briefcase is annual leave, the dark right-half overlay
+is overtime, and the red outline is today.
 
 ## Suggested layout
 

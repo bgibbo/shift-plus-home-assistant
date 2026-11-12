@@ -1,6 +1,9 @@
 # Documentation image checklist
 
-`shift-plus-icon.png` is the approved Shift + Android product icon. No other branding or promotional asset is currently approved for this repository.
+`shift-plus-icon.png` is the approved Shift + Android product icon.
+`shift-plus-promotional.png` is approved official promotional artwork linking to
+[shiftplus.plus](https://www.shiftplus.plus/). It is not a Home Assistant
+screenshot.
 
 Do not add AI-generated, mock, recreated, or modified application screenshots. The developer will supply official Play promotional artwork and genuine Android/Home Assistant captures for review before they are used.
 
@@ -18,7 +21,7 @@ Capture on a real test installation with fictional or sanitised data. PNG is pre
 | `shift-plus-roster-card.png` | 1440 × 900 | Monthly card with fictional duties, leave and overtime; README/dashboard guide |
 | `shift-plus-card-editor.png` | 1440 × 900 | Manual-card editor and safe YAML; installation guide |
 | `shift-plus-card-presentation.png` | 1440 × 900 | Card showing documented font/layout settings; dashboard guide |
-| `shift-plus-play-promo.png` | supplied original | Approved unmodified Google Play artwork; README only after approval |
+| `shift-plus-promotional.png` | supplied original | Approved official promotional artwork; README |
 
 ## Review and sanitization
 

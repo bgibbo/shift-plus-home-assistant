@@ -1,10 +1,16 @@
 /* Shift + roster card. Dependency-free and intentionally contains no credentials. */
 
 const SHIFT_COLORS = Object.freeze({
-  E: "#72b879",
-  L: "#8fc8ef",
-  N: "#2457a6",
-  R: "#e57373",
+  // Shift + Android's standard CalendarAppearance palette.
+  E: "#E0F0E1",
+  L: "#DCEAF7",
+  N: "#6685AD",
+  R: "#F6DEE1",
+});
+const ANDROID_CALENDAR = Object.freeze({
+  annualLeave: "#43A047",
+  today: "#C81E1E",
+  overtime: "#20242A",
 });
 
 const PRESENTATION = Object.freeze({
@@ -184,15 +190,21 @@ class ShiftPlusRosterCard extends HTMLElementBase {
           key === this.selected ? "selected" : "",
           dutyCode ? `duty-${dutyCode}` : "",
         ].filter(Boolean).join(" ");
-        const dots = [
-          markers.some((item) => item.kind === "annual_leave")
-            ? '<span class="marker leave" title="Annual leave"></span>' : "",
-          markers.some((item) => item.kind === "overtime")
-            ? '<span class="marker overtime" title="Overtime"></span>' : "",
-        ].join("");
-        return `<button class="${classes}" data-date="${key}" aria-label="${key}">
-          <span>${date.getDate()}</span><strong>${escapeHtml(dutyCode)}</strong>
-          <span class="markers">${dots}</span></button>`;
+        const leave = markers.find((item) => item.kind === "annual_leave");
+        const hasOvertime = markers.some((item) => item.kind === "overtime");
+        const leaveShade = leave?.portion === "morning"
+          ? '<span class="leave-half morning"></span>'
+          : leave?.portion === "afternoon"
+          ? '<span class="leave-half afternoon"></span>' : "";
+        const overtimeShade = hasOvertime ? '<span class="overtime-overlay"></span>' : "";
+        const leaveIcon = leave
+          ? '<ha-icon class="annual-leave" icon="mdi:briefcase-outline" title="Annual leave"></ha-icon>'
+          : "";
+        const label = [key, dutyCode ? `duty ${dutyCode}` : "", leave ? "annual leave" : "", hasOvertime ? "overtime" : ""]
+          .filter(Boolean).join(", ");
+        return `<button class="${classes}" data-date="${key}" aria-label="${escapeHtml(label)}">
+          ${overtimeShade}${leaveShade}<span class="day-number">${date.getDate()}</span>
+          <strong>${escapeHtml(dutyCode)}</strong>${leaveIcon}</button>`;
       }).join("");
     const detail = [
       selectedDuty ? `Duty ${escapeHtml(selectedDuty)}` : "Duty data not yet synced",
@@ -201,7 +213,7 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     ].filter(Boolean).join(" · ");
     this.innerHTML = `<ha-card>
       <style>
-        :host{--sp-blue:#45699b;--sp-font-scale:${fontScale};--sp-cell-height:${cellHeight};--sp-grid-gap:${gridGap};display:block}.wrap{padding:18px;color:var(--primary-text-color);font-size:calc(1rem * var(--sp-font-scale))}
+        :host{--sp-blue:#45699b;--sp-android-today:${ANDROID_CALENDAR.today};--sp-annual-leave:${ANDROID_CALENDAR.annualLeave};--sp-overtime:${ANDROID_CALENDAR.overtime};--sp-font-scale:${fontScale};--sp-cell-height:${cellHeight};--sp-grid-gap:${gridGap};display:block}.wrap{padding:18px;color:var(--primary-text-color);font-size:calc(1rem * var(--sp-font-scale))}
         header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
         h2{margin:0;font-size:1.45rem}.subtitle{color:var(--secondary-text-color);font-size:.9rem}
         .summary{display:grid;grid-template-columns:minmax(11rem,2fr) repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
@@ -213,13 +225,12 @@ class ShiftPlusRosterCard extends HTMLElementBase {
         .month button{border:0;background:transparent;color:var(--primary-text-color);font-size:1.5rem;cursor:pointer}
         .week,.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--sp-grid-gap)}
         .week span{text-align:center;font-size:.72rem;font-weight:700;color:var(--secondary-text-color)}
-        .day{position:relative;min-height:var(--sp-cell-height);border:0;border-radius:10px;background:var(--secondary-background-color);color:var(--primary-text-color);padding:6px;cursor:pointer}
-        .day strong{display:block;margin-top:4px}.outside{opacity:.38}.today{outline:3px solid var(--sp-blue)}
-        .selected{box-shadow:inset 0 0 0 2px var(--primary-text-color)}
+        .day{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;min-height:var(--sp-cell-height);border:0;border-radius:10px;background:var(--secondary-background-color);color:var(--primary-text-color);padding:6px;cursor:pointer;overflow:hidden}
+        .day-number{align-self:flex-start;font-weight:700;line-height:1}.day strong{display:block;margin-top:6px;font-size:1.1em}.outside{opacity:.68;box-shadow:inset 0 0 0 2px var(--primary-text-color)}.today{box-shadow:inset 0 0 0 4px var(--sp-android-today)}
+        .selected:not(.today){box-shadow:inset 0 0 0 2px var(--primary-text-color)}
         .duty-E{background:${SHIFT_COLORS.E}}.duty-L{background:${SHIFT_COLORS.L}}
         .duty-N{background:${SHIFT_COLORS.N};color:#fff}.duty-R{background:${SHIFT_COLORS.R}}
-        .markers{position:absolute;display:flex;gap:3px;bottom:5px;left:50%;transform:translateX(-50%)}
-        .marker{width:7px;height:7px;border-radius:50%}.leave{background:#f5c542}.overtime{background:#7e57c2}
+        .overtime-overlay{position:absolute;z-index:-1;inset:0 0 0 50%;background:rgba(32,36,42,.38);border-radius:0 8px 8px 0}.leave-half{position:absolute;z-index:-1;top:0;bottom:0;width:50%;background:rgba(67,160,71,.16)}.leave-half.morning{left:0;border-radius:8px 0 0 8px}.leave-half.afternoon{right:0;border-radius:0 8px 8px 0}.annual-leave{position:absolute;top:3px;right:3px;color:var(--sp-annual-leave);--mdc-icon-size:14px}
         .detail{margin-top:14px;padding:12px;border-left:4px solid var(--sp-blue);background:var(--secondary-background-color);border-radius:8px}
         .empty{padding:18px;text-align:center;color:var(--secondary-text-color)}
         @media(max-width:520px){:host{--sp-cell-height:min(var(--sp-cell-height),48px);--sp-grid-gap:min(var(--sp-grid-gap),3px)}.wrap{padding:12px}.day{padding:4px}.summary{grid-template-columns:1fr}}
@@ -268,6 +279,7 @@ if (typeof customElements !== "undefined" && !customElements.get("shift-plus-ros
 if (typeof module !== "undefined") {
   module.exports = {
     SHIFT_COLORS,
+    ANDROID_CALENDAR,
     PRESENTATION,
     ShiftPlusRosterCard,
     calendarCells,

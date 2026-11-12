@@ -63,7 +63,7 @@ The default layout is compact on phones, balanced on tablets, and comfortable on
 | `calendar_cell_size` | `compact`, `comfortable`, `spacious` | `comfortable` |
 | `layout_density` | `compact`, `comfortable`, `spacious` | `comfortable` |
 
-Duty backgrounds identify configured Early, Late, Night and Rest duties. Yellow marks annual leave, purple marks overtime, the blue outline marks today, and the sync line reflects current integration synchronization status.
+Duty backgrounds use the Shift + Android standard palette for configured Early, Late, Night and Rest duties. A green briefcase marks annual leave, a dark right-half overlay marks overtime, the red outline marks today, and the sync line reflects current integration synchronization status.
 
 ## Troubleshooting
 

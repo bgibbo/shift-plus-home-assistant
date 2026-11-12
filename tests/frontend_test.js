@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   SHIFT_COLORS,
+  ANDROID_CALENDAR,
   PRESENTATION,
   ShiftPlusRosterCard,
   calendarCells,
@@ -14,6 +15,13 @@ const {
 } = require("../custom_components/shift_plus/frontend/shift-plus-roster-card.js");
 
 assert.deepEqual(Object.keys(SHIFT_COLORS), ["E", "L", "N", "R"]);
+assert.equal(SHIFT_COLORS.E, "#E0F0E1");
+assert.equal(SHIFT_COLORS.L, "#DCEAF7");
+assert.equal(SHIFT_COLORS.N, "#6685AD");
+assert.equal(SHIFT_COLORS.R, "#F6DEE1");
+assert.deepEqual(ANDROID_CALENDAR, {
+  annualLeave: "#43A047", today: "#C81E1E", overtime: "#20242A",
+});
 assert.equal(PRESENTATION.font_size.large, "1.12");
 assert.equal(presentationValue("font_size", "invalid", "medium"), "1");
 assert.equal(calendarCells(2026, 8).length, 42);
@@ -50,7 +58,7 @@ const rendered = renderCard({
     attributes: {
       card_data_version: 1,
       events: [
-        { date: currentDate, kind: "annual_leave" },
+        { date: currentDate, kind: "annual_leave", portion: "morning" },
         { date: currentDate, kind: "overtime" },
         null,
         { malformed: true },
@@ -61,6 +69,10 @@ const rendered = renderCard({
 });
 assert.match(rendered, /Annual leave/);
 assert.match(rendered, /Overtime/);
+assert.match(rendered, /mdi:briefcase-outline/);
+assert.match(rendered, /overtime-overlay/);
+assert.match(rendered, /leave-half morning/);
+assert.match(rendered, /--sp-android-today:#C81E1E/);
 assert.match(rendered, /Duty data not yet synced/);
 
 const rosterName = "Core and Non-Core Demonstration Roster With A Long Name";

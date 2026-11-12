@@ -2,9 +2,11 @@
 
 <p align="center"><img src="docs/images/shift-plus-icon.png" width="150" alt="Shift + app icon"></p>
 
+<p align="center"><a href="https://www.shiftplus.plus/"><img src="docs/images/shift-plus-promotional.png" alt="Shift + roster manager promotional artwork"></a></p>
+
 Bring your Shift + roster into Home Assistant. Shift + securely synchronizes your active roster, annual leave and overtime from the Android app, then calculates live duty, booking-window and schedule information locally in Home Assistant.
 
-> A genuine, sanitised monthly-roster dashboard screenshot will be added here when the developer-supplied capture has passed review. This repository does not use mock or generated Home Assistant screenshots.
+> A genuine, sanitised monthly-roster dashboard screenshot will be added here when the developer-supplied capture has passed review. The promotional artwork above is official artwork, not a Home Assistant screenshot.
 
 ## What you get
 

@@ -111,6 +111,7 @@ def test_roster_card_contract_is_bounded_and_has_marker_only_data() -> None:
                         "id": "private-leave-id",
                         "start_date": "2026-09-21",
                         "number_of_days": 2,
+                        "day_portion": "morning",
                         "description": "Must not be exposed",
                     }
                 ]
@@ -137,8 +138,8 @@ def test_roster_card_contract_is_bounded_and_has_marker_only_data() -> None:
     assert len(data["days"]) == 84
     assert data["range_start"] == "2026-09-21"
     assert data["events"] == [
-        {"date": "2026-09-21", "kind": "annual_leave"},
-        {"date": "2026-09-22", "kind": "annual_leave"},
+        {"date": "2026-09-21", "kind": "annual_leave", "portion": "morning"},
+        {"date": "2026-09-22", "kind": "annual_leave", "portion": "morning"},
         {"date": "2026-09-23", "kind": "overtime"},
     ]
     assert "id" not in str(data)
@@ -159,6 +160,7 @@ async def test_roster_card_month_endpoint_is_bounded_and_sanitized() -> None:
                         "id": "private-leave-id",
                         "start_date": "2027-02-02",
                         "number_of_days": 1,
+                        "day_portion": "afternoon",
                         "description": "Must not be exposed",
                     }
                 ]
@@ -183,7 +185,7 @@ async def test_roster_card_month_endpoint_is_bounded_and_sanitized() -> None:
     assert data["range_end"] == "2027-03-14"
     assert len(data["days"]) == 42
     assert data["events"] == [
-        {"date": "2027-02-02", "kind": "annual_leave"},
+        {"date": "2027-02-02", "kind": "annual_leave", "portion": "afternoon"},
         {"date": "2027-02-04", "kind": "overtime"},
     ]
     assert "private" not in str(data)
