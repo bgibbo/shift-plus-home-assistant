@@ -33,6 +33,7 @@ const rendered = renderCard({
     entity_id: "sensor.shift_calendar",
     state: "2",
     attributes: {
+      card_data_version: 1,
       events: [
         { date: currentDate, kind: "annual_leave" },
         { date: currentDate, kind: "overtime" },

@@ -67,7 +67,12 @@ class ShiftPlusRosterCard extends HTMLElementBase {
 
   _calendarData() {
     const entity = this._entity("calendar_entity", "calendar");
-    if (!entity || ["unknown", "unavailable"].includes(entity.state)) {
+    if (
+      !entity ||
+      ["unknown", "unavailable"].includes(entity.state) ||
+      entity.attributes?.card_data_version !== 1 ||
+      !Array.isArray(entity.attributes.days)
+    ) {
       return { available: false, events: [], days: [] };
     }
     return {

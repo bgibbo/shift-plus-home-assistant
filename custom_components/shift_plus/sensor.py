@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -339,8 +339,51 @@ class CompatibilitySummarySensor(ShiftPlusEntity, SensorEntity):
                 "stored_records": len(self.runtime.store.sync.records),
             }
         if self.key == "calendar":
-            return {"duty_data_available": True}
+            return _roster_card_data(self.runtime)
         if self.key == "annual_leave":
             totals = self.coordinator.data["leave_totals"]
             return {"taken": totals[0], "planned": totals[1], "remaining": totals[2]}
         return {"entries": len(self.coordinator.data["overtime"])}
+
+
+def _roster_card_data(runtime: RuntimeData) -> dict[str, Any]:
+    """Return the bounded, presentation-only contract used by the roster card."""
+    coordinator = runtime.coordinator
+    today = coordinator.data["now"].date()
+    start = today - timedelta(days=today.weekday())
+    end = start + timedelta(days=83)
+    days: list[dict[str, str]] = []
+    current = start
+    while current <= end:
+        duty = coordinator._configured(
+            coordinator.engine.duty(
+                current,
+                coordinator.data["roster_id"],
+                coordinator.data["unit_id"],
+            )
+        )
+        days.append({"date": current.isoformat(), "duty": duty.code})
+        current += timedelta(days=1)
+    return {
+        "card_data_version": 1,
+        "range_start": start.isoformat(),
+        "range_end": end.isoformat(),
+        "days": days,
+        "events": _card_markers(runtime, start, end),
+    }
+
+
+def _card_markers(runtime: RuntimeData, start: date, end: date) -> list[dict[str, str]]:
+    """Expose marker dates only; leave and overtime details remain private."""
+    markers: list[dict[str, str]] = []
+    for item in runtime.store.records("annual_leave"):
+        first = date.fromisoformat(item["start_date"])
+        for offset in range(int(item["number_of_days"])):
+            day = first + timedelta(days=offset)
+            if start <= day <= end:
+                markers.append({"date": day.isoformat(), "kind": "annual_leave"})
+    for item in runtime.store.records("overtime"):
+        day = date.fromisoformat(item["date"])
+        if start <= day <= end:
+            markers.append({"date": day.isoformat(), "kind": "overtime"})
+    return markers

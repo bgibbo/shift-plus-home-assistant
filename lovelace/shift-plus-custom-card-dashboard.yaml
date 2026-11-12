@@ -1,4 +1,7 @@
 title: Shift +
+resources:
+  - url: /shift_plus/shift-plus-roster-card.js
+    type: module
 views:
   - title: Shift +
     path: shift-plus

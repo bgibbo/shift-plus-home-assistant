@@ -1,10 +1,32 @@
 # Dashboard guide
 
-Shift + 5.1.0 supports built-in Home Assistant cards for current and next duty, book-on/off, working status, leave, overtime and calendars.
+Shift + supports built-in Home Assistant cards for current and next duty, book-on/off, working status, leave, overtime and calendars. It also includes an optional Shift + monthly roster card.
 
 Use entity selection in the dashboard editor after installation because Home Assistant may suffix an entity ID that is already occupied. Existing public 5.0.1 summary sensors remain available for older dashboards.
 
 The examples in `lovelace/` can be copied into a manual dashboard. Review every entity ID before saving.
+
+## Shift + monthly roster card
+
+For normal Home Assistant storage-mode dashboards, the integration registers the
+card resource automatically. Reload the browser once after installing or
+updating the integration, then copy
+`lovelace/shift-plus-custom-card-dashboard.yaml` into a manual dashboard.
+
+For YAML-mode Lovelace, add this resource to your existing dashboard
+configuration before using the card:
+
+```yaml
+resources:
+  - url: /shift_plus/shift-plus-roster-card.js
+    type: module
+```
+
+The card reads the existing **Calendar** compatibility sensor. It receives only
+the active roster's duty code and leave/overtime marker dates for a bounded
+rolling window; it does not expose pairing, entitlement, notes, or record
+descriptions. It shows an unavailable state until initial Android sync has
+completed.
 
 ## Suggested layout
 

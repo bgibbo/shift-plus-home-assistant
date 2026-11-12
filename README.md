@@ -5,7 +5,7 @@
 
 The official Home Assistant companion integration for the [Shift + Android app](https://play.google.com/store/apps/details?id=ie.shiftplus.app), maintained by **GIBBO**.
 
-Shift + 5.1.0 synchronizes roster configuration, annual leave and overtime from Android, calculates schedule projections locally in Home Assistant, and exposes them for dashboards and automations. Synchronization requires **Shift + Premium**.
+Shift + synchronizes roster configuration, annual leave and overtime from Android, calculates schedule projections locally in Home Assistant, and exposes them for dashboards and automations. Synchronization requires **Shift + Premium**.
 
 ## Features
 
@@ -16,6 +16,7 @@ Shift + 5.1.0 synchronizes roster configuration, annual leave and overtime from 
 - Working now, today and tomorrow binary sensors
 - Active roster and unit details
 - Roster, annual-leave and overtime calendars
+- Optional monthly roster card for Home Assistant dashboards
 - Leave taken, planned and remaining
 - Previous, current and next 28-day overtime totals
 - Manual sync and secure pairing controls
