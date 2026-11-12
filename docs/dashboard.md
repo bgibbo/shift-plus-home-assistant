@@ -26,7 +26,10 @@ The card reads the existing **Calendar** compatibility sensor. It receives only
 the active roster's duty code and leave/overtime marker dates for a bounded
 rolling window; it does not expose pairing, entitlement, notes, or record
 descriptions. It shows an unavailable state until initial Android sync has
-completed.
+completed. When you browse outside the initial window, it requests one
+authenticated, bounded month grid from Home Assistant. The calculation remains
+in Home Assistant, so Core and Non-Core roster cycles use the same roster
+engine as the normal entities.
 
 ### Optional card presentation
 
@@ -38,10 +41,19 @@ synchronization:
 
 ```yaml
 type: custom:shift-plus-roster-card
+title: Shift + roster
+calendar_entity: sensor.shift_calendar
+roster_entity: sensor.shift_active_roster
+status_entity: sensor.shift_paired_devices
+leave_entity: sensor.shift_annual_leave
+overtime_entity: sensor.shift_overtime
 font_size: large # small, medium (default), large
 calendar_cell_size: spacious # compact, comfortable (default), spacious
 layout_density: compact # compact, comfortable (default), spacious
 ```
+
+Duty backgrounds identify Early, Late, Night and Rest. The yellow marker is
+annual leave, the purple marker is overtime, and the blue outline is today.
 
 ## Suggested layout
 

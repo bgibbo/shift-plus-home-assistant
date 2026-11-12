@@ -41,6 +41,15 @@ const calendarCells = (year, month) => {
   });
 };
 
+const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+const coversMonth = (calendar, month) => {
+  const cells = calendarCells(month.getFullYear(), month.getMonth());
+  const first = isoDate(cells[0]);
+  const last = isoDate(cells.at(-1));
+  return calendar.range_start <= first && calendar.range_end >= last;
+};
+
 const HTMLElementBase = typeof HTMLElement === "undefined" ? class {} : HTMLElement;
 
 class ShiftPlusRosterCard extends HTMLElementBase {
@@ -61,6 +70,9 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     const now = new Date();
     this.month = new Date(now.getFullYear(), now.getMonth(), 1);
     this.selected = isoDate(now);
+    this._remoteCalendar = null;
+    this._loadingMonth = null;
+    this._unavailableMonths = new Set();
   }
 
   set hass(value) {
@@ -86,13 +98,44 @@ class ShiftPlusRosterCard extends HTMLElementBase {
       entity.attributes?.card_data_version !== 1 ||
       !Array.isArray(entity.attributes.days)
     ) {
-      return { available: false, events: [], days: [] };
+      return { available: false, events: [], days: [], range_start: "", range_end: "" };
     }
+    const remote = this._remoteCalendar;
+    if (remote?.month === monthKey(this.month)) return remote;
     return {
       available: true,
       events: Array.isArray(entity.attributes.events) ? entity.attributes.events : [],
       days: Array.isArray(entity.attributes.days) ? entity.attributes.days : [],
+      range_start: entity.attributes.range_start ?? "",
+      range_end: entity.attributes.range_end ?? "",
     };
+  }
+
+  async _ensureMonthData(calendar) {
+    if (!calendar.available || coversMonth(calendar, this.month) || !this._hass?.callApi) return;
+    const month = monthKey(this.month);
+    if (
+      this._loadingMonth === month || this._remoteCalendar?.month === month ||
+      this._unavailableMonths.has(month)
+    ) return;
+    this._loadingMonth = month;
+    try {
+      const data = await this._hass.callApi(
+        "GET", `/api/shift_plus/roster-card?month=${encodeURIComponent(month)}`,
+      );
+      if (
+        data?.card_data_version === 1 && data.month === month &&
+        Array.isArray(data.days) && Array.isArray(data.events)
+      ) {
+        this._remoteCalendar = { ...data, available: true };
+      }
+    } catch (_error) {
+      // The regular bounded sensor data remains usable if a request cannot load.
+      this._unavailableMonths.add(month);
+    } finally {
+      if (this._loadingMonth === month) this._loadingMonth = null;
+      this.render();
+    }
   }
 
   _dayMap(items) {
@@ -208,6 +251,7 @@ class ShiftPlusRosterCard extends HTMLElementBase {
       this.month = new Date(this.month.getFullYear(), this.month.getMonth() + 1, 1);
       this.render();
     });
+    void this._ensureMonthData(calendar);
   }
 }
 
@@ -227,8 +271,10 @@ if (typeof module !== "undefined") {
     PRESENTATION,
     ShiftPlusRosterCard,
     calendarCells,
+    coversMonth,
     escapeHtml,
     isoDate,
+    monthKey,
     presentationValue,
   };
 }

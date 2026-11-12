@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 import custom_components.shift_plus.frontend as frontend
+from custom_components.shift_plus.api import RosterCardView
 from custom_components.shift_plus.const import DOMAIN
 from custom_components.shift_plus.frontend import (
     FRONTEND_RESOURCE_URL,
@@ -141,3 +143,56 @@ def test_roster_card_contract_is_bounded_and_has_marker_only_data() -> None:
     ]
     assert "id" not in str(data)
     assert "description" not in str(data)
+
+
+@pytest.mark.asyncio
+async def test_roster_card_month_endpoint_is_bounded_and_sanitized() -> None:
+    class Engine:
+        def duty(self, day, roster_id, unit_id):
+            return SimpleNamespace(code="E" if day.day % 2 else "R")
+
+    class Store:
+        def records(self, kind):
+            if kind == "annual_leave":
+                return [
+                    {
+                        "id": "private-leave-id",
+                        "start_date": "2027-02-02",
+                        "number_of_days": 1,
+                        "description": "Must not be exposed",
+                    }
+                ]
+            return [{"id": "private-overtime-id", "date": "2027-02-04"}]
+
+    coordinator = SimpleNamespace(
+        data={"roster_id": "non-core", "unit_id": "unit-b"},
+        engine=Engine(),
+        _configured=lambda duty: duty,
+    )
+    runtime = SimpleNamespace(coordinator=coordinator, store=Store())
+    request = SimpleNamespace(
+        query={"month": "2027-02"},
+        app={"hass": SimpleNamespace(data={DOMAIN: {"entry": runtime}})},
+    )
+
+    response = await RosterCardView().get(request)
+    data = json.loads(response.body)
+
+    assert data["month"] == "2027-02"
+    assert data["range_start"] == "2027-02-01"
+    assert data["range_end"] == "2027-03-14"
+    assert len(data["days"]) == 42
+    assert data["events"] == [
+        {"date": "2027-02-02", "kind": "annual_leave"},
+        {"date": "2027-02-04", "kind": "overtime"},
+    ]
+    assert "private" not in str(data)
+
+
+@pytest.mark.asyncio
+async def test_roster_card_month_endpoint_rejects_invalid_month() -> None:
+    request = SimpleNamespace(query={"month": "2027-2"}, app={"hass": None})
+
+    response = await RosterCardView().get(request)
+
+    assert response.status == 400

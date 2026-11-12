@@ -352,6 +352,16 @@ def _roster_card_data(runtime: RuntimeData) -> dict[str, Any]:
     today = coordinator.data["now"].date()
     start = today - timedelta(days=today.weekday())
     end = start + timedelta(days=83)
+    return roster_card_data_for_range(runtime, start, end)
+
+
+def roster_card_data_for_range(
+    runtime: RuntimeData, start: date, end: date
+) -> dict[str, Any]:
+    """Return sanitized roster-card data for a bounded inclusive date range."""
+    if end < start or (end - start).days >= 84:
+        raise ValueError("Roster-card range must contain between 1 and 84 days")
+    coordinator = runtime.coordinator
     days: list[dict[str, str]] = []
     current = start
     while current <= end:
