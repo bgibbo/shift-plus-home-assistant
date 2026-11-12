@@ -7,6 +7,15 @@ const SHIFT_COLORS = Object.freeze({
   R: "#e57373",
 });
 
+const PRESENTATION = Object.freeze({
+  font_size: Object.freeze({ small: ".9", medium: "1", large: "1.12" }),
+  calendar_cell_size: Object.freeze({ compact: "46px", comfortable: "58px", spacious: "70px" }),
+  layout_density: Object.freeze({ compact: "4px", comfortable: "6px", spacious: "9px" }),
+});
+
+const presentationValue = (group, value, fallback) =>
+  PRESENTATION[group][value] ?? PRESENTATION[group][fallback];
+
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -43,6 +52,10 @@ class ShiftPlusRosterCard extends HTMLElementBase {
       status_entity: "sensor.shift_paired_devices",
       leave_entity: "sensor.shift_annual_leave",
       overtime_entity: "sensor.shift_overtime",
+      // Defaults adapt at mobile and tablet breakpoints in the card stylesheet.
+      font_size: "medium",
+      calendar_cell_size: "comfortable",
+      layout_density: "comfortable",
       ...config,
     };
     const now = new Date();
@@ -108,6 +121,13 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     });
     const selectedEvents = events.get(this.selected) ?? [];
     const selectedDuty = (duties.get(this.selected) ?? [])[0]?.duty;
+    const fontScale = presentationValue("font_size", this.config.font_size, "medium");
+    const cellHeight = presentationValue(
+      "calendar_cell_size", this.config.calendar_cell_size, "comfortable",
+    );
+    const gridGap = presentationValue(
+      "layout_density", this.config.layout_density, "comfortable",
+    );
     const cells = calendarCells(this.month.getFullYear(), this.month.getMonth())
       .map((date) => {
         const key = isoDate(date);
@@ -138,18 +158,19 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     ].filter(Boolean).join(" · ");
     this.innerHTML = `<ha-card>
       <style>
-        :host{--sp-blue:#45699b;display:block}.wrap{padding:18px;color:var(--primary-text-color)}
+        :host{--sp-blue:#45699b;--sp-font-scale:${fontScale};--sp-cell-height:${cellHeight};--sp-grid-gap:${gridGap};display:block}.wrap{padding:18px;color:var(--primary-text-color);font-size:calc(1rem * var(--sp-font-scale))}
         header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
         h2{margin:0;font-size:1.45rem}.subtitle{color:var(--secondary-text-color);font-size:.9rem}
-        .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+        .summary{display:grid;grid-template-columns:minmax(11rem,2fr) repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
         .metric{background:var(--secondary-background-color);border-radius:12px;padding:10px;min-width:0}
         .metric b,.metric span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .metric.roster b{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.25}
         .metric span{font-size:.75rem;color:var(--secondary-text-color);margin-bottom:3px}
         .month{display:flex;align-items:center;justify-content:space-between;margin:8px 0}
         .month button{border:0;background:transparent;color:var(--primary-text-color);font-size:1.5rem;cursor:pointer}
-        .week,.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+        .week,.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--sp-grid-gap)}
         .week span{text-align:center;font-size:.72rem;font-weight:700;color:var(--secondary-text-color)}
-        .day{position:relative;min-height:58px;border:0;border-radius:10px;background:var(--secondary-background-color);color:var(--primary-text-color);padding:6px;cursor:pointer}
+        .day{position:relative;min-height:var(--sp-cell-height);border:0;border-radius:10px;background:var(--secondary-background-color);color:var(--primary-text-color);padding:6px;cursor:pointer}
         .day strong{display:block;margin-top:4px}.outside{opacity:.38}.today{outline:3px solid var(--sp-blue)}
         .selected{box-shadow:inset 0 0 0 2px var(--primary-text-color)}
         .duty-E{background:${SHIFT_COLORS.E}}.duty-L{background:${SHIFT_COLORS.L}}
@@ -158,13 +179,14 @@ class ShiftPlusRosterCard extends HTMLElementBase {
         .marker{width:7px;height:7px;border-radius:50%}.leave{background:#f5c542}.overtime{background:#7e57c2}
         .detail{margin-top:14px;padding:12px;border-left:4px solid var(--sp-blue);background:var(--secondary-background-color);border-radius:8px}
         .empty{padding:18px;text-align:center;color:var(--secondary-text-color)}
-        @media(max-width:520px){.wrap{padding:12px}.day{min-height:48px;padding:4px}.summary{grid-template-columns:1fr}.week,.grid{gap:3px}}
+        @media(max-width:520px){:host{--sp-cell-height:min(var(--sp-cell-height),48px);--sp-grid-gap:min(var(--sp-grid-gap),3px)}.wrap{padding:12px}.day{padding:4px}.summary{grid-template-columns:1fr}}
+        @media(min-width:521px) and (max-width:800px){:host{--sp-cell-height:min(var(--sp-cell-height),52px)}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.metric.roster{grid-column:1 / -1}}
       </style>
       <div class="wrap"><header><div><h2>${escapeHtml(this.config.title)}</h2>
       <div class="subtitle">${escapeHtml(new Date().toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long" }))}</div></div>
       <ha-icon icon="mdi:calendar-account"></ha-icon></header>
       <div class="summary">
-        <div class="metric"><span>Active roster</span><b>${escapeHtml(roster?.state ?? "Unavailable")}</b></div>
+        <div class="metric roster"><span>Active roster</span><b title="${escapeHtml(roster?.state ?? "Unavailable")}">${escapeHtml(roster?.state ?? "Unavailable")}</b></div>
         <div class="metric"><span>Annual leave</span><b>${escapeHtml(leave ? `${leave.state} days` : "Unavailable")}</b></div>
         <div class="metric"><span>Overtime</span><b>${escapeHtml(overtime ? `${overtime.state} h` : "Unavailable")}</b></div>
       </div>
@@ -202,9 +224,11 @@ if (typeof customElements !== "undefined" && !customElements.get("shift-plus-ros
 if (typeof module !== "undefined") {
   module.exports = {
     SHIFT_COLORS,
+    PRESENTATION,
     ShiftPlusRosterCard,
     calendarCells,
     escapeHtml,
     isoDate,
+    presentationValue,
   };
 }

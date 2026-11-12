@@ -16,6 +16,12 @@ from custom_components.shift_plus.frontend import (
 from custom_components.shift_plus.sensor import _roster_card_data
 
 
+def test_manifest_declares_lovelace_dependency() -> None:
+    manifest = Path("custom_components/shift_plus/manifest.json").read_text()
+
+    assert '"dependencies": ["http", "lovelace"]' in manifest
+
+
 class _Resources:
     def __init__(self) -> None:
         self.loaded = False

@@ -28,6 +28,21 @@ rolling window; it does not expose pairing, entitlement, notes, or record
 descriptions. It shows an unavailable state until initial Android sync has
 completed.
 
+### Optional card presentation
+
+The card is responsive by default: compact on phones, balanced on tablets, and
+comfortable on desktop displays. It preserves readable duty colours and lets a
+long active-roster name wrap rather than truncating it. The following optional
+configuration values tune presentation only; they do not affect roster data or
+synchronization:
+
+```yaml
+type: custom:shift-plus-roster-card
+font_size: large # small, medium (default), large
+calendar_cell_size: spacious # compact, comfortable (default), spacious
+layout_density: compact # compact, comfortable (default), spacious
+```
+
 ## Suggested layout
 
 1. Current Shift, Next Shift and Next Shift Date.
