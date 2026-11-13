@@ -220,6 +220,46 @@ async def test_roster_card_month_endpoint_rejects_invalid_month() -> None:
     assert response.status == 400
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("month", "range_start", "range_end"),
+    (
+        ("2025-01", "2024-12-30", "2025-02-09"),
+        ("2027-03", "2027-03-01", "2027-04-11"),
+    ),
+)
+async def test_roster_card_month_endpoint_supports_historical_and_future_navigation(
+    month: str, range_start: str, range_end: str
+) -> None:
+    class Engine:
+        def duty(self, day, roster_id, unit_id):
+            return SimpleNamespace(code="E" if day.day % 2 else "L")
+
+    class Store:
+        def records(self, kind):
+            return []
+
+    coordinator = SimpleNamespace(
+        data={"roster_id": "non-core-2", "unit_id": "unit-b"},
+        engine=Engine(),
+        _configured=lambda duty: duty,
+    )
+    runtime = SimpleNamespace(coordinator=coordinator, store=Store())
+    request = SimpleNamespace(
+        query={"month": month},
+        app={"hass": SimpleNamespace(data={DOMAIN: {"entry": runtime}})},
+    )
+
+    response = await RosterCardView().get(request)
+    data = json.loads(response.body)
+
+    assert response.status == 200
+    assert data["month"] == month
+    assert data["range_start"] == range_start
+    assert data["range_end"] == range_end
+    assert len(data["days"]) == 42
+
+
 def test_compatibility_overtime_summary_declares_hours() -> None:
     sensor = object.__new__(CompatibilitySummarySensor)
     sensor.key = "overtime"

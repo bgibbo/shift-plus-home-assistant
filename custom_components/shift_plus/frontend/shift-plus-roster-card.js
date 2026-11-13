@@ -141,8 +141,11 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     ) return;
     this._loadingMonth = month;
     try {
+      // hass.callApi supplies the /api/ prefix and user authentication.
+      // Supplying an absolute /api/ path produces /api//api/... and the
+      // authenticated month request is rejected by Home Assistant.
       const data = await this._hass.callApi(
-        "GET", `/api/shift_plus/roster-card?month=${encodeURIComponent(month)}`,
+        "GET", `shift_plus/roster-card?month=${encodeURIComponent(month)}`,
       );
       if (
         data?.card_data_version === 1 && data.card_version === ROSTER_CARD_VERSION &&

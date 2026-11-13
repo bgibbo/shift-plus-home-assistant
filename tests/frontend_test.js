@@ -112,7 +112,8 @@ assert.match(configured.innerHTML, new RegExp(rosterName));
 const remoteCard = new ShiftPlusRosterCard();
 remoteCard.setConfig({});
 remoteCard.month = new Date(2027, 1, 1);
-remoteCard.render = () => {};
+let remoteRenderCount = 0;
+remoteCard.render = () => { remoteRenderCount += 1; };
 remoteCard._hass = {
   states: {
     "sensor.shift_calendar": {
@@ -125,7 +126,7 @@ remoteCard._hass = {
   },
   callApi: async (method, path) => {
     assert.equal(method, "GET");
-    assert.match(path, /month=2027-02/);
+    assert.equal(path, "shift_plus/roster-card?month=2027-02");
     return {
       card_data_version: 1, card_version: ROSTER_CARD_VERSION, month: "2027-02",
       range_start: "2027-02-01", range_end: "2027-03-14", days: [{ date: "2027-02-01", duty: "E" }], events: [],
@@ -135,6 +136,21 @@ remoteCard._hass = {
 await remoteCard._ensureMonthData(remoteCard._calendarData());
 assert.equal(remoteCard._remoteCalendar.month, "2027-02");
 assert.equal(remoteCard._calendarData().days[0].duty, "E");
+assert.equal(remoteRenderCount, 1, "remote data immediately re-renders the calendar");
+
+remoteCard.month = new Date(2025, 0, 1);
+remoteCard._hass.callApi = async (method, path) => {
+  assert.equal(method, "GET");
+  assert.equal(path, "shift_plus/roster-card?month=2025-01");
+  return {
+    card_data_version: 1, card_version: ROSTER_CARD_VERSION, month: "2025-01",
+    range_start: "2024-12-30", range_end: "2025-02-09", days: [{ date: "2025-01-01", duty: "L" }], events: [],
+  };
+};
+await remoteCard._ensureMonthData(remoteCard._calendarData());
+assert.equal(remoteCard._remoteCalendar.month, "2025-01");
+assert.equal(remoteCard._calendarData().days[0].duty, "L");
+assert.equal(remoteRenderCount, 2, "historical remote data re-renders the calendar");
 
 const mismatchedCard = new ShiftPlusRosterCard();
 mismatchedCard.setConfig({});
@@ -147,6 +163,24 @@ mismatchedCard._hass = {
 await mismatchedCard._ensureMonthData(mismatchedCard._calendarData());
 assert.match(mismatchedCard._monthLoadErrors.get("2027-02"), /versions do not match/);
 assert.ok(mismatchedCard._unavailableMonths.has("2027-02"));
+
+const failedCard = new ShiftPlusRosterCard();
+failedCard.setConfig({});
+failedCard.month = new Date(2027, 2, 1);
+let failedRenderCount = 0;
+failedCard.render = () => { failedRenderCount += 1; };
+failedCard._hass = {
+  states: remoteCard._hass.states,
+  callApi: async (method, path) => {
+    assert.equal(method, "GET");
+    assert.equal(path, "shift_plus/roster-card?month=2027-03");
+    throw new Error("HTTP 404");
+  },
+};
+await failedCard._ensureMonthData(failedCard._calendarData());
+assert.match(failedCard._monthLoadErrors.get("2027-03"), /HTTP 404/);
+assert.ok(failedCard._unavailableMonths.has("2027-03"));
+assert.equal(failedRenderCount, 1, "a failed month request re-renders its error");
 console.log("Shift + frontend tests passed");
 })().catch((error) => {
   console.error(error);
