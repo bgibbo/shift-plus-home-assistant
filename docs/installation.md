@@ -34,7 +34,7 @@ On Home Assistant versions before Marketplace, use HACS if it is already install
 4. Restart Home Assistant only if HACS asks you to: **Settings → System → Restart Home Assistant**.
 5. Go to **Settings → Devices & services → Add integration**, then search for **Shift +**.
 
-The Marketplace/HACS catalogue is the normal installation route. If a catalogue search cannot find Shift +, allow the catalogue to refresh and check the repository releases and support information before adding any repository manually. Do not add a custom repository merely because this guide exists.
+Shift + is in the Marketplace/HACS default catalogue. If it does not appear immediately, allow the catalogue to refresh before retrying. Do not add a custom repository for the normal public installation.
 
 ## Pair Android and perform the first sync
 

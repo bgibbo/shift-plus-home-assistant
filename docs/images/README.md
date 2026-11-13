@@ -13,13 +13,16 @@ Capture on a real test installation with fictional or sanitised data. PNG is pre
 
 | Filename | Recommended size | Capture and intended use |
 |---|---:|---|
-| `marketplace-shift-plus-install.png` | 1440 × 900 | Home Assistant Marketplace page for Shift +; Marketplace installation guide |
-| `hacs-shift-plus-install.png` | 1440 × 900 | HACS Integration page for Shift +; installation guide |
-| `add-integration-shift-plus.png` | 1440 × 900 | Settings → Devices & services → Add integration search; installation guide |
+| `marketplace-shift-plus-install.png` | 1440 × 900 | Home Assistant Marketplace page for Shift +; installation guide |
+| `hacs-shift-plus-install.png` | 1440 × 900 | HACS Integration page for Shift +; older-installation guide |
+| `shift-plus-home-assistant-configuration.png` | 365 × 244 | Genuine integration configuration controls; README |
+| `shift-plus-home-assistant-entities-1.png` and `shift-plus-home-assistant-entities-2.png` | supplied captures | Genuine two-part entity-list capture; README |
+| `shift-plus-home-assistant-roster-card.png` | 529 × 808 | Genuine monthly roster card; README/dashboard guide |
+| `shift-plus-android-calendar.jpg` | 945 × 2048 | Genuine Android roster calendar; README |
 | `android-pairing-shift-plus.png` | 1080 × 1920 | Android pairing flow with all QR/private data removed; installation guide |
 | `shift-plus-initial-sync.png` | 1440 × 900 | Completed initial sync/device page with safe data; installation guide |
 | `shift-plus-entities.png` | 1440 × 900 | Populated Home Assistant entity list; installation guide/entity reference |
-| `shift-plus-roster-card.png` | 1440 × 900 | Monthly card with fictional duties, leave and overtime; README/dashboard guide. **Still required before a dashboard screenshot is published.** |
+| `shift-plus-roster-card.png` | 1440 × 900 | Optional wider monthly-card capture for a future documentation update |
 | `shift-plus-card-editor.png` | 1440 × 900 | Manual-card editor and safe YAML; installation guide |
 | `shift-plus-card-presentation.png` | 1440 × 900 | Card showing documented font/layout settings; dashboard guide |
 | `shift-plus-promotional.png` | supplied original | Approved official promotional artwork; README |
