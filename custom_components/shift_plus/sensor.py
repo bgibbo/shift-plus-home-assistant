@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -16,6 +16,7 @@ from homeassistant.const import EntityCategory, UnitOfTime
 
 from .coordinator import RuntimeData
 from .entity import ShiftPlusEntity
+from .frontend import ROSTER_CARD_VERSION
 from .roster.calculations import overtime_minutes
 
 
@@ -339,8 +340,71 @@ class CompatibilitySummarySensor(ShiftPlusEntity, SensorEntity):
                 "stored_records": len(self.runtime.store.sync.records),
             }
         if self.key == "calendar":
-            return {"duty_data_available": True}
+            return {
+                **_roster_card_data(self.runtime),
+                "card_version": ROSTER_CARD_VERSION,
+            }
         if self.key == "annual_leave":
             totals = self.coordinator.data["leave_totals"]
             return {"taken": totals[0], "planned": totals[1], "remaining": totals[2]}
-        return {"entries": len(self.coordinator.data["overtime"])}
+        return {
+            "entries": len(self.coordinator.data["overtime"]),
+            "unit_of_measurement": "h",
+        }
+
+
+def _roster_card_data(runtime: RuntimeData) -> dict[str, Any]:
+    """Return the bounded, presentation-only contract used by the roster card."""
+    coordinator = runtime.coordinator
+    today = coordinator.data["now"].date()
+    start = today - timedelta(days=today.weekday())
+    end = start + timedelta(days=83)
+    return roster_card_data_for_range(runtime, start, end)
+
+
+def roster_card_data_for_range(
+    runtime: RuntimeData, start: date, end: date
+) -> dict[str, Any]:
+    """Return sanitized roster-card data for a bounded inclusive date range."""
+    if end < start or (end - start).days >= 84:
+        raise ValueError("Roster-card range must contain between 1 and 84 days")
+    coordinator = runtime.coordinator
+    days: list[dict[str, str]] = []
+    current = start
+    while current <= end:
+        duty = coordinator._configured(
+            coordinator.engine.duty(
+                current,
+                coordinator.data["roster_id"],
+                coordinator.data["unit_id"],
+            )
+        )
+        days.append({"date": current.isoformat(), "duty": duty.code})
+        current += timedelta(days=1)
+    return {
+        "card_data_version": 1,
+        "range_start": start.isoformat(),
+        "range_end": end.isoformat(),
+        "days": days,
+        "events": _card_markers(runtime, start, end),
+    }
+
+
+def _card_markers(runtime: RuntimeData, start: date, end: date) -> list[dict[str, str]]:
+    """Expose marker dates only; leave and overtime details remain private."""
+    markers: list[dict[str, str]] = []
+    for item in runtime.store.records("annual_leave"):
+        first = date.fromisoformat(item["start_date"])
+        portion = str(item.get("day_portion", "fullDay"))
+        for offset in range(int(item["number_of_days"])):
+            day = first + timedelta(days=offset)
+            if start <= day <= end:
+                marker = {"date": day.isoformat(), "kind": "annual_leave"}
+                if portion in {"morning", "afternoon"}:
+                    marker["portion"] = portion
+                markers.append(marker)
+    for item in runtime.store.records("overtime"):
+        day = date.fromisoformat(item["date"])
+        if start <= day <= end:
+            markers.append({"date": day.isoformat(), "kind": "overtime"})
+    return markers

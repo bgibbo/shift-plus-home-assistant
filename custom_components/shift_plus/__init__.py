@@ -27,6 +27,11 @@ from .const import (
     SERVICE_UPDATE_OVERTIME,
 )
 from .coordinator import RuntimeData, ShiftPlusCoordinator
+from .frontend import (
+    async_ensure_lovelace_resource,
+    async_remove_frontend_resource,
+    async_setup_frontend,
+)
 from .roster.engine import RosterEngine
 from .security import EntitlementVerifier, PairingManager
 from .storage import ShiftPlusStore
@@ -36,6 +41,9 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
+    if not hass.data[DOMAIN].get("frontend_registered"):
+        await async_setup_frontend(hass)
+        hass.data[DOMAIN]["frontend_registered"] = True
     if not hass.data[DOMAIN].get("views_registered"):
         register_views(hass)
         hass.data[DOMAIN]["views_registered"] = True
@@ -55,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime = RuntimeData(coordinator=coordinator, store=store, pairing=pairing)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
     entry.runtime_data = runtime
+    await async_ensure_lovelace_resource(hass)
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
@@ -93,17 +102,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unloaded
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Remove the auto-created dashboard resource on integration removal."""
+    if not _entry_runtimes(hass):
+        await async_remove_frontend_resource(hass)
+    return True
+
+
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _entry_runtime(hass: HomeAssistant):
-    entries = [
-        value for key, value in hass.data[DOMAIN].items() if key != "views_registered"
-    ]
+    entries = _entry_runtimes(hass)
     if len(entries) != 1:
         raise ValueError("Shift + requires exactly one configured entry")
     return entries[0]
+
+
+def _entry_runtimes(hass: HomeAssistant) -> list[RuntimeData]:
+    return [
+        value for value in hass.data[DOMAIN].values() if isinstance(value, RuntimeData)
+    ]
 
 
 def _register_services(hass: HomeAssistant) -> None:

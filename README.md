@@ -1,89 +1,73 @@
 # Shift + for Home Assistant
 
-<p align="center"><img src="docs/images/shift-plus-icon.png" width="180" alt="Shift +"></p>
-<h3 align="center">Bring your roster into Home Assistant</h3>
+<p align="center"><img src="docs/images/shift-plus-icon.png" width="130" alt="Shift + app icon"></p>
 
-The official Home Assistant companion integration for the [Shift + Android app](https://play.google.com/store/apps/details?id=ie.shiftplus.app), maintained by **GIBBO**.
+<p align="center"><a href="https://www.shiftplus.plus/"><img src="docs/images/shift-plus-promotional.png" alt="Official Shift + Roster Manager promotional artwork"></a></p>
 
-Shift + 5.1.0 synchronizes roster configuration, annual leave and overtime from Android, calculates schedule projections locally in Home Assistant, and exposes them for dashboards and automations. Synchronization requires **Shift + Premium**.
+<p align="center"><a href="https://www.shiftplus.plus/"><strong>Website</strong></a> &nbsp;•&nbsp; <a href="https://play.google.com/store/apps/details?id=ie.shiftplus.app"><strong>Get Shift + on Google Play</strong></a> &nbsp;•&nbsp; <a href="docs/installation.md"><strong>Home Assistant installation guide</strong></a></p>
 
-## Features
+**Shift +** helps regular 9-to-5 workers and rotating-shift workers stay ahead of work. Manage your calendar, leave and overtime in the Android app; use its work alarms and booking-on/off reminders; then pair once to bring the same schedule into Home Assistant.
 
-- Current Shift, Next Shift and Next Shift Date
-- Early, Late, Night and Rest duty calculation
-- Rostered and effective start/end times
-- Next Book On, Next Book Off and booking windows
-- Working now, today and tomorrow binary sensors
-- Active roster and unit details
-- Roster, annual-leave and overtime calendars
-- Leave taken, planned and remaining
-- Previous, current and next 28-day overtime totals
-- Manual sync and secure pairing controls
-- Compatibility summary sensors retained from public 5.0.1
+Your Home Assistant dashboard becomes a clear companion view of today's duty, upcoming work, leave and overtime—useful at home, on a wall display or alongside your daily routines. Shift + Premium is required for Android pairing and roster synchronization. Home Assistant stores a local synchronized copy and calculates its live schedule information locally.
 
-Android synchronizes configuration and records. Home Assistant stores that replica and recalculates time-sensitive schedule values every minute. Overtime can extend working boundaries, Rest-day overtime can create them, and applicable partial leave can suppress a book-on or book-off boundary.
+## Shift + Android app
 
-## Requirements
+Manage rosters, leave, overtime and work alarms in the genuine Shift + Android application. The calendar below shows the Android colour language used by the Home Assistant monthly card.
 
-- Home Assistant 2024.7.0 or newer
-- HACS
-- [Shift + for Android](https://play.google.com/store/apps/details?id=ie.shiftplus.app)
-- Active Shift + Premium
-- Network access from Android to Home Assistant
+<p align="center"><img src="docs/images/shift-plus-android-calendar.jpg" width="360" alt="Shift + Android app roster calendar showing Early, Late and Rest duties"></p>
 
-## Install through HACS
+## Home Assistant monthly roster dashboard
 
-1. In HACS, add `https://github.com/bgibbo/shift-plus-home-assistant` as an **Integration** custom repository.
-2. Download **Shift +** and restart Home Assistant.
-3. Open **Settings → Devices & services → Add integration** and add **Shift +**.
-4. Press **Create Android pairing QR** on the Shift + device.
-5. Scan the QR in the Shift + Android app and allow the initial synchronization to finish.
+The genuine Home Assistant dashboard card keeps the same easy-to-read duty colours, adds leave and overtime summaries, and lets you browse calculated historical and future months.
 
-The QR is single-use and expires after five minutes.
+<p align="center"><img src="docs/images/shift-plus-home-assistant-roster-card.png" width="520" alt="Shift + Home Assistant monthly roster card showing November 2026"></p>
 
-> **Screenshot safety:** never share a live pairing QR. It contains short-lived pairing credentials.
+## Home Assistant integration
 
-## Entities and dashboards
+The integration adds pairing controls and schedule entities to the Shift + device. These genuine captures show the configuration controls and an example selection of populated entities; they do not purport to show every entity.
 
-The complete [entity reference](docs/entities.md) identifies synchronized and locally calculated values. Ready-to-use examples are in the [dashboard guide](docs/dashboard.md).
+<p align="center"><img src="docs/images/shift-plus-home-assistant-configuration.png" width="365" alt="Shift + Home Assistant integration configuration controls"> <img src="docs/images/shift-plus-home-assistant-entities-1.png" width="260" alt="First portion of Shift + Home Assistant entity list"> <img src="docs/images/shift-plus-home-assistant-entities-2.png" width="258" alt="Second portion of Shift + Home Assistant entity list"></p>
 
-Public 5.0.1 summary IDs are retained where practical so existing dashboards continue working. The 5.1.0 migration also preserves compatible pairing credentials and synchronized replica records from both public 5.0.1 and the earlier feature-rich 5.0.1 implementation.
+## What you get
 
-## Synchronization and security
+- Current and next duty, active roster and unit at a glance.
+- Rostered and effective start/end times, including Book On and Book Off windows.
+- Leave, overtime, working status and calendar entities for dashboards and automations.
+- A responsive monthly roster card with Android-matched Early, Late, Night and Rest colours; annual-leave/overtime markers; and a current-day outline.
+- Calculated historical and future month navigation without exposing pairing or entitlement data to the card.
+- Secure Android pairing and ongoing synchronization.
 
-Pairing uses a short-lived QR, production three-part EdDSA JWT verification, X25519 key agreement and HKDF-SHA256. Requests use HMAC-SHA256 with nonce replay protection. Premium grants are bound to the HA entry, session, installation, device and app public key; renewal rejects stale grants and entitlement identity changes.
+## Install and pair
 
-Shift + on Android initiates synchronization when it next connects to Home
-Assistant. **Refresh schedule** recalculates Home Assistant's locally derived
-schedule immediately; it does not wake or contact Android.
+1. In Home Assistant 2026.11 or newer, open **Settings → Marketplace** and install **Shift +**. On older systems, find it under **HACS → Integrations**.
+2. Open **Settings → Devices & services → Add integration**, then choose **Shift +**.
+3. Create the Android pairing QR from the Shift + device and scan it in the Shift + Android app within five minutes.
+4. Wait for the first sync, then add the optional monthly card to a dashboard.
 
-**Unacknowledged Home Assistant changes** counts only HA-originated changes not
-yet acknowledged by every paired Android replica. The disabled-by-default
-**Journal entries awaiting acknowledgement** diagnostic includes all retained
-protocol journal entries, including Android-originated entries awaiting the
-next returned cursor.
+```yaml
+type: custom:shift-plus-roster-card
+title: Shift + roster
+calendar_entity: sensor.shift_calendar
+roster_entity: sensor.shift_active_roster
+status_entity: sensor.shift_paired_devices
+leave_entity: sensor.shift_annual_leave
+overtime_entity: sensor.shift_overtime
+font_size: medium
+calendar_cell_size: comfortable
+layout_density: comfortable
+```
 
-If **Sync conflicts** is non-zero, inspect its `unresolved` attribute. Each item
-has a safe `conflict_id`, current selection and alternative. Run **Shift +:
-Resolve one sync conflict** with that ID and explicitly choose `current` or
-`alternative`. Only that conflict is resolved; Android receives the merged
-canonical record on its next normal synchronization.
+For normal storage-mode dashboards, the integration registers the card resource automatically. You do not need to copy a `lovelace` folder, edit `.storage`, use a terminal or manually register JavaScript.
 
-See the [protocol](docs/protocol.md) and [security model](docs/security.md) for details.
+## Learn more and get help
 
-## Troubleshooting
-
-- **QR rejected or expired:** create a new QR and scan it within five minutes.
-- **Pairing unavailable:** confirm Premium is active and the phone can reach Home Assistant.
-- **Schedule is wrong:** confirm the active roster, unit and schedule settings in Android, then synchronize.
-- **Sync stopped:** check Last successful sync and Android pairing status, then confirm Premium renewal succeeds.
-- **Calendar is empty:** open Shift + briefly and allow synchronization to complete.
-
-Never include purchase tokens, pairing QR codes, HA access tokens, credentials, private URLs or personal roster data in a support report. Use the [GitHub issue tracker](https://github.com/bgibbo/shift-plus-home-assistant/issues).
-
-## Screenshots
-
-Genuine sanitized screenshots are still required. Follow the [screenshot checklist](docs/images/README.md); do not capture a live QR or personal data.
+- [Website](https://www.shiftplus.plus/)
+- [Shift + on Google Play](https://play.google.com/store/apps/details?id=ie.shiftplus.app)
+- [Beginner installation and pairing guide](docs/installation.md)
+- [Monthly roster card and appearance guide](docs/dashboard.md)
+- [Entity reference](docs/entities.md)
+- [Security model](docs/security.md)
+- [Report an issue](https://github.com/bgibbo/shift-plus-home-assistant/issues)
 
 ## Development
 

@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from aiohttp import web
@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PROTOCOL_VERSION
 from .coordinator import make_qr
+from .frontend import ROSTER_CARD_VERSION
 from .security import (
     EntitlementError,
     entitlement_is_active,
@@ -23,6 +24,7 @@ from .security import (
     validate_renewal,
     verify_request,
 )
+from .sensor import roster_card_data_for_range
 from .sync import ReplicatedRecord
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,6 +109,37 @@ class PairingStartView(HomeAssistantView):
         runtime.pairing_qr_expired = False
         runtime.coordinator.async_update_listeners()
         return self.json(payload)
+
+
+class RosterCardView(HomeAssistantView):
+    """Serve one bounded, sanitized month grid to the authenticated dashboard."""
+
+    url = "/api/shift_plus/roster-card"
+    name = "api:shift_plus:roster-card"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        month = request.query.get("month", "")
+        try:
+            first = datetime.strptime(month, "%Y-%m").date().replace(day=1)
+        except ValueError:
+            return self.json_message("Invalid month; use YYYY-MM", 400)
+        if first.strftime("%Y-%m") != month:
+            return self.json_message("Invalid month; use YYYY-MM", 400)
+        runtimes = [
+            value
+            for value in request.app["hass"].data.get(DOMAIN, {}).values()
+            if hasattr(value, "coordinator") and hasattr(value, "store")
+        ]
+        if len(runtimes) != 1:
+            raise web.HTTPNotFound()
+        start = first - timedelta(days=first.weekday())
+        data = roster_card_data_for_range(
+            runtimes[0], start, start + timedelta(days=41)
+        )
+        data["month"] = month
+        data["card_version"] = ROSTER_CARD_VERSION
+        return self.json(data)
 
 
 class PairingCompleteView(HomeAssistantView):
@@ -428,6 +461,7 @@ def _runtime(hass: HomeAssistant, entry_id: str) -> Any:
 
 
 def register_views(hass: HomeAssistant) -> None:
+    hass.http.register_view(RosterCardView())
     hass.http.register_view(PairingStartView())
     hass.http.register_view(PairingCompleteView())
     hass.http.register_view(SyncView())
