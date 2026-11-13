@@ -2,39 +2,40 @@
 
 <p align="center"><img src="docs/images/shift-plus-icon.png" width="150" alt="Shift + app icon"></p>
 
-<p align="center"><a href="https://www.shiftplus.plus/"><img src="docs/images/shift-plus-promotional.png" alt="Shift + roster manager promotional artwork"></a></p>
+<p align="center"><a href="https://www.shiftplus.plus/"><img src="docs/images/shift-plus-promotional.png" alt="Official Shift + roster manager promotional artwork"></a></p>
 
-Bring your Shift + roster into Home Assistant. Shift + securely synchronizes your active roster, annual leave and overtime from the Android app, then calculates live duty, booking-window and schedule information locally in Home Assistant.
+Bring the roster you already manage in **Shift + for Android** into Home Assistant. After a secure one-time pairing, Shift + keeps your active roster, annual leave and overtime in sync so Home Assistant can show your schedule alongside the rest of your day.
 
-> A genuine, sanitised monthly-roster dashboard screenshot will be added here when the developer-supplied capture has passed review. The promotional artwork above is official artwork, not a Home Assistant screenshot.
+The public release remains **v5.1.2**. This audit branch contains unreleased documentation and dashboard work; it does not represent a published v5.1.3 release.
 
-## What you get
+## Why use it?
 
-- Current and next shift, roster day, and active roster/unit
-- Rostered and effective start/end times, including Book On and Book Off windows
-- Working-now/today/tomorrow status, roster/leave/overtime calendars, leave totals, and 28-day overtime totals
-- A responsive monthly roster card with duty colours, leave/overtime markers, current-date highlighting, and adjustable presentation
-- Secure Android pairing and automatic ongoing synchronisation
+- See your current and next duty, active roster and unit at a glance.
+- See rostered and effective start/end times, including Book On and Book Off windows.
+- Track leave, overtime, working status and calendars in Home Assistant.
+- Add a responsive monthly roster card with Android-matched Early, Late, Night and Rest colours, leave/overtime markers and a current-day outline.
+- Browse calculated historical and future months without exposing private pairing or entitlement data to the card.
 
-Shift + Premium is required to pair the Android app and synchronize roster data. Home Assistant keeps a local synchronized replica and calculates time-sensitive schedule values locally.
+Shift + Premium is required for Android pairing and roster synchronization. Home Assistant receives a local synchronized copy and calculates its live schedule information locally. See the [security model](docs/security.md) for technical details.
 
-## Requirements and compatibility
+> The artwork above is official Shift + promotional artwork, not a Home Assistant screenshot. A reviewed, sanitised dashboard screenshot has not yet been supplied for publication; this repository deliberately does not use a mock or AI-generated substitute.
+
+## Requirements
 
 - Home Assistant 2024.7.0 or newer
-- [HACS](https://www.hacs.xyz/)
 - [Shift + for Android](https://play.google.com/store/apps/details?id=ie.shiftplus.app)
-- Active Shift + Premium
-- Network access from the Android device to the Home Assistant instance
+- An active Shift + Premium subscription
+- Android and Home Assistant able to reach one another for pairing and sync
 
-## Install and pair
+On Home Assistant 2026.11 and newer, community integrations are installed from **Settings → Marketplace**. Older installations use **HACS → Integrations**. When Shift + is available in the default catalogue, install it there; catalogue users do not need to add this repository manually.
 
-Install through **HACS → Integrations**, then restart Home Assistant when HACS asks. Add **Shift +** under **Settings → Devices & services → Add integration**, create the Android pairing QR, and scan it in the Shift + Android app. Allow the first synchronization to finish before building dashboards.
+## Quick start
 
-The complete beginner-friendly instructions, including initial sync checks and the custom-card setup, are in the [installation guide](docs/installation.md). The pairing QR is single-use and expires after five minutes; never include it in a screenshot or support request.
-
-## Dashboard
-
-Home Assistant's built-in entity and calendar cards work with Shift + immediately. For the optional monthly roster card, create a test or personal dashboard, choose **Manual** in the card editor, and paste:
+1. Install **Shift +** from Marketplace or HACS, then follow any restart prompt.
+2. Go to **Settings → Devices & services → Add integration** and select **Shift +**.
+3. Create an Android pairing QR from the Shift + device, then scan it in the Shift + Android app within five minutes.
+4. Wait for the first sync and confirm the Shift + entities are populated.
+5. Add the optional monthly card to a dashboard with the YAML below.
 
 ```yaml
 type: custom:shift-plus-roster-card
@@ -49,18 +50,18 @@ calendar_cell_size: comfortable
 layout_density: comfortable
 ```
 
-Storage-mode dashboards register the required JavaScript resource automatically. See the [dashboard guide](docs/dashboard.md) for presentation options, YAML-mode configuration, colour/marker meanings, and troubleshooting.
+For normal storage-mode dashboards, the integration registers the JavaScript resource automatically. You do not need to copy a `lovelace` folder, edit `.storage`, use a terminal, or add a resource manually in the normal path.
 
-## Help and support
+## Guides and support
 
-- [Installation guide](docs/installation.md)
-- [Dashboard guide](docs/dashboard.md)
+- [Beginner installation and pairing guide](docs/installation.md)
+- [Monthly roster card and appearance guide](docs/dashboard.md)
 - [Entity reference](docs/entities.md)
 - [Troubleshooting](docs/installation.md#troubleshooting)
 - [Security model](docs/security.md)
-- [GitHub issues](https://github.com/bgibbo/shift-plus-home-assistant/issues)
+- [Report an issue](https://github.com/bgibbo/shift-plus-home-assistant/issues)
 
-When seeking help, remove pairing QR codes, credentials, URLs, device IDs, purchase information, private roster data, and personal information.
+Do not include pairing QR codes, credentials, URLs, device IDs, purchase information, personal roster data or private notes in screenshots or support requests.
 
 ## Development
 

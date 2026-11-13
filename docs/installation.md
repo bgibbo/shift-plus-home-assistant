@@ -1,42 +1,59 @@
-# Install Shift + with HACS
+# Install and pair Shift +
 
-This guide uses Home Assistant's normal interface. It does not require copying files, command-line commands, or editing Home Assistant storage.
+This guide uses Home Assistant's normal interface. A catalogue installation does not require copying files, adding a custom repository, using a terminal, or editing Home Assistant storage.
 
 ## Before you begin
 
-You need Home Assistant 2024.7.0 or newer, HACS, the Shift + Android app with an active Premium subscription, and a phone that can reach your Home Assistant instance.
+You need:
 
-## 1. Install from HACS
+- Home Assistant 2024.7.0 or newer.
+- Shift + for Android with active Shift + Premium.
+- An Android device that can reach your Home Assistant instance.
+- A Home Assistant administrator account.
 
-1. Open **HACS** in Home Assistant's sidebar.
-2. Select **Integrations**.
-3. Select **Explore & download repositories** and search for **Shift +**.
-4. Open **Shift +**, select **Download**, and confirm the version offered by HACS.
-5. Restart when HACS requests it: **Settings → System → Restart Home Assistant**.
+Pairing is a one-time secure link between the Android app and this Home Assistant instance. The QR code is single-use and expires after five minutes. Never share or screenshot it.
 
-If Shift + is not visible, let HACS refresh its catalogue and confirm Home Assistant meets the requirement. A development branch is not the normal public installation method.
+## Install from Home Assistant Marketplace
 
-## 2. Add Shift + and pair Android
+Home Assistant 2026.11 and newer include Marketplace under **Settings → Marketplace**.
 
-1. Go to **Settings → Devices & services**.
-2. Select **Add integration**, search for **Shift +**, and complete setup.
-3. Open the created Shift + device and select **Create Android pairing QR**.
-4. In Shift + on Android, open its Home Assistant pairing flow and scan the QR within five minutes.
-5. Keep both apps open until Android completes and Home Assistant shows the paired state.
+1. Open **Settings → Marketplace**.
+2. Search for **Shift +** and open its integration page.
+3. Select **Install** and review the version offered.
+4. If setup does not open automatically, go to **Settings → Devices & services** and select **Add integration**, then search for **Shift +**.
 
-The QR is single-use. Never share, screenshot, or publish it.
+Marketplace content is community-maintained rather than part of Home Assistant Core. Install only the public Shift + repository you expect. If Shift + is already shown in Marketplace, do not add it again as a custom repository.
 
-## 3. Confirm the first synchronization
+## Install with HACS (older Home Assistant installations)
 
-Android initiates synchronization when it connects to Home Assistant. After it finishes, open the Shift + device page and confirm **Last successful sync** is recent and schedule entities are populated. Check Current Shift, Next Shift, Active roster, Active unit, Annual leave, Overtime, and the roster/leave/overtime calendars.
+On Home Assistant versions before Marketplace, use HACS if it is already installed:
 
-If values are not present yet, open Shift + on Android, confirm its network access, and allow its normal synchronization to complete.
+1. Open **HACS** in the sidebar and select **Integrations**.
+2. Select **Explore & download repositories**, search for **Shift +**, and open the result.
+3. Select **Download** and confirm the offered version.
+4. Restart Home Assistant only if HACS asks you to: **Settings → System → Restart Home Assistant**.
+5. Go to **Settings → Devices & services → Add integration**, then search for **Shift +**.
 
-## 4. Create a Shift + dashboard
+The Marketplace/HACS catalogue is the normal installation route. If a catalogue search cannot find Shift +, allow the catalogue to refresh and check the repository releases and support information before adding any repository manually. Do not add a custom repository merely because this guide exists.
 
-1. Go to **Settings → Dashboards** and create or edit a personal dashboard.
-2. Add Home Assistant entity or calendar cards using Shift + entities.
-3. For the monthly card, choose **Add card → Manual** and paste:
+## Pair Android and perform the first sync
+
+1. Complete the Shift + integration setup in **Settings → Devices & services**.
+2. Open the created Shift + device and select **Create Android pairing QR**.
+3. In Shift + on Android, open the Home Assistant pairing flow and scan the QR within five minutes.
+4. Keep both devices online until Android reports success and Home Assistant shows a paired state.
+5. Wait for the initial synchronization to finish.
+
+Then open the Shift + device page and check that **Last successful sync** is recent and that Current Shift, Next Shift, Active roster, Active unit, Annual leave, Overtime, and the calendar entities have values. Android initiates the synchronization; Home Assistant does not need a separate import step.
+
+## Add the monthly roster card
+
+After the initial sync:
+
+1. Open the dashboard where you want the card.
+2. Select **Edit dashboard → Add card → Manual**.
+3. Paste the following YAML, checking entity IDs with the entity picker if Home Assistant has added a suffix.
+4. Save the card.
 
 ```yaml
 type: custom:shift-plus-roster-card
@@ -51,38 +68,28 @@ calendar_cell_size: comfortable
 layout_density: comfortable
 ```
 
-Home Assistant may suffix entity IDs if an ID is already in use. Confirm the IDs with the entity picker before saving.
+The resource is registered automatically for normal storage-mode dashboards. The card uses Android-matched duty colours: Early is green, Late is light blue, Night is dark blue, and Rest is pink. The green briefcase marks annual leave, the dark right-half overlay marks overtime, and the red outline marks today. Use the arrows to browse calculated historical and future months.
 
-### Card appearance
+`font_size` accepts `small`, `medium` and `large`; `calendar_cell_size` and `layout_density` each accept `compact`, `comfortable` and `spacious`. These options affect presentation only, not your roster or synchronization.
 
-The default layout is compact on phones, balanced on tablets, and comfortable on desktop displays. These presentation-only options are available:
+## Updating
 
-| Option | Values | Default |
-|---|---|---|
-| `font_size` | `small`, `medium`, `large` | `medium` |
-| `calendar_cell_size` | `compact`, `comfortable`, `spacious` | `comfortable` |
-| `layout_density` | `compact`, `comfortable`, `spacious` | `comfortable` |
-
-Duty backgrounds use the Shift + Android standard palette for configured Early, Late, Night and Rest duties. A green briefcase marks annual leave, a dark right-half overlay marks overtime, the red outline marks today, and the sync line reflects current integration synchronization status.
+Install updates through **Settings → Updates** on Marketplace systems or from the integration page in HACS. Restart Home Assistant if prompted, then refresh your browser. The card resource URL is versioned automatically for newly registered resources so browser caches do not retain an older card after an upgrade.
 
 ## Troubleshooting
 
-### The monthly card is unavailable
+### The card is unavailable or has no duty colours
 
-Complete Android pairing and wait for initial synchronization, then refresh the browser. The card intentionally has no roster data before the first sync.
+Confirm pairing and the first Android synchronization have completed. Check that the configured Calendar entity has values, then refresh the browser. The card intentionally has no roster data before its first successful sync.
 
-### The custom card is not recognised
+### A historical or future month cannot load
 
-Storage-mode dashboards register the resource automatically. If it is not recognised after restarting Home Assistant and refreshing the browser:
+The card asks Home Assistant for one authenticated, bounded month at a time. Check the card's visible error message, confirm the integration is loaded, and refresh after an update. If the error persists, include the month and error text in an issue, but omit QR codes, addresses, device IDs and roster details.
 
-1. Open **Settings → Dashboards → Resources**.
-2. Select **Add Resource**.
-3. Set URL to `/shift_plus/shift-plus-roster-card.js?v=2026.11.13.2`.
-4. Set type to **JavaScript module**.
-5. Save and refresh the browser.
+### The custom card is not recognised after an update
 
-For YAML-mode Lovelace, see the [dashboard guide](dashboard.md#shift--monthly-roster-card).
+First perform a full browser refresh. Normal storage-mode dashboards register the resource automatically. As a fallback, an administrator can open **Settings → Dashboards → Resources**, inspect the existing Shift + JavaScript module resource, and ensure its URL includes the versioned URL supplied by the installed integration's release notes. Do not create duplicate resources and do not edit `.storage`.
 
 ### Pairing or synchronization does not finish
 
-Confirm Premium is active, the phone can reach Home Assistant, and the QR has not expired. Create a new QR if needed, but never expose it in a support request.
+Confirm Premium is active, the Android device can reach Home Assistant, and the QR has not expired. Create a new QR when needed, but never expose it in a support request. See the [security model](security.md) for the high-level pairing design.

@@ -1,43 +1,10 @@
-# Dashboard guide
+# Shift + dashboards
 
-Shift + supports built-in Home Assistant cards for current and next duty, book-on/off, working status, leave, overtime and calendars. It also includes an optional Shift + monthly roster card.
+Shift + works with ordinary Home Assistant entity and calendar cards as soon as the first Android synchronization completes. It also provides an optional monthly roster card for a quick, Android-aligned view of the active schedule.
 
-Use entity selection in the dashboard editor after installation because Home Assistant may suffix an entity ID that is already occupied. Existing public 5.0.1 summary sensors remain available for older dashboards.
+## Monthly roster card
 
-The examples in `lovelace/` can be copied into a manual dashboard. Review every entity ID before saving.
-
-## Shift + monthly roster card
-
-For normal Home Assistant storage-mode dashboards, the integration registers the
-card resource automatically. Reload the browser once after installing or
-updating the integration, then copy
-`lovelace/shift-plus-custom-card-dashboard.yaml` into a manual dashboard.
-
-For YAML-mode Lovelace, add this resource to your existing dashboard
-configuration before using the card:
-
-```yaml
-resources:
-  - url: /shift_plus/shift-plus-roster-card.js?v=2026.11.13.2
-    type: module
-```
-
-The card reads the existing **Calendar** compatibility sensor. It receives only
-the active roster's duty code and leave/overtime marker dates for a bounded
-rolling window; it does not expose pairing, entitlement, notes, or record
-descriptions. It shows an unavailable state until initial Android sync has
-completed. When you browse outside the initial window, it requests one
-authenticated, bounded month grid from Home Assistant. The calculation remains
-in Home Assistant, so Core and Non-Core roster cycles use the same roster
-engine as the normal entities.
-
-### Optional card presentation
-
-The card is responsive by default: compact on phones, balanced on tablets, and
-comfortable on desktop displays. It preserves readable duty colours and lets a
-long active-roster name wrap rather than truncating it. The following optional
-configuration values tune presentation only; they do not affect roster data or
-synchronization:
+For a normal storage-mode dashboard, install Shift + through Marketplace or HACS, then add a **Manual** card. The integration registers its JavaScript module automatically; no copied `lovelace` folder or manually maintained resource is needed.
 
 ```yaml
 type: custom:shift-plus-roster-card
@@ -47,16 +14,40 @@ roster_entity: sensor.shift_active_roster
 status_entity: sensor.shift_paired_devices
 leave_entity: sensor.shift_annual_leave
 overtime_entity: sensor.shift_overtime
-font_size: large # small, medium (default), large
-calendar_cell_size: spacious # compact, comfortable (default), spacious
-layout_density: compact # compact, comfortable (default), spacious
+font_size: medium
+calendar_cell_size: comfortable
+layout_density: comfortable
 ```
 
-Duty backgrounds use the Shift + Android standard palette for Early, Late,
-Night and Rest. The green briefcase is annual leave, the dark right-half overlay
-is overtime, and the red outline is today.
+Use the entity picker if your instance has chosen suffixed entity IDs. Existing public 5.0.1 summary sensors remain available for older dashboards.
 
-## Suggested layout
+### Reading the card
+
+- **Early** duties use green, **Late** light blue, **Night** dark blue and **Rest** pink, matching the Shift + Android calendar.
+- A green briefcase is annual leave; a dark right-half overlay is overtime.
+- The red outline is today.
+- The arrows browse calculated historical and future months. The card requests only one authenticated, bounded month from Home Assistant when the visible month is outside the initial sync window.
+- The synchronization line is a quick status indicator; it is not a substitute for resolving any integration error shown on the device page.
+
+Only duty codes and marker dates are provided to the card. Pairing material, entitlement data, record descriptions and notes are not exposed to it.
+
+### Presentation options
+
+The default is designed to remain readable across phones, tablets and desktops. The following options affect appearance only:
+
+| Option | Values | Default |
+|---|---|---|
+| `font_size` | `small`, `medium`, `large` | `medium` |
+| `calendar_cell_size` | `compact`, `comfortable`, `spacious` | `comfortable` |
+| `layout_density` | `compact`, `comfortable`, `spacious` | `comfortable` |
+
+Long active-roster names wrap instead of being silently truncated. Keep duty colours readable and avoid setting every option to its most compact value on a small screen.
+
+## YAML-mode dashboards
+
+Most users do not need YAML-mode Lovelace. If you maintain a YAML dashboard, declare the versioned JavaScript module using the version URL supplied by the installed integration release, then use the same card YAML above. Do not copy the example `lovelace` directory wholesale or edit Home Assistant's `.storage` files.
+
+## Suggested dashboard layout
 
 1. Current Shift, Next Shift and Next Shift Date.
 2. Next Book On and Next Book Off.
@@ -69,4 +60,4 @@ is overtime, and the red outline is today.
 
 ## Screenshots
 
-Only publish genuine sanitized Home Assistant screenshots. Follow `docs/images/README.md`. Never show a pairing QR, private URL, device identifier, personal notes, entitlement data or credential material.
+Only publish genuine, sanitised Home Assistant screenshots. The approved promotional artwork in the README is not a dashboard capture. The exact required dashboard captures and sanitisation checklist are in [docs/images/README.md](images/README.md).
