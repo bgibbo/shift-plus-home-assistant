@@ -1,6 +1,6 @@
 DOMAIN = "shift_plus"
 NAME = "Shift +"
-VERSION = "5.1.2"
+VERSION = "5.1.3"
 STORAGE_VERSION = 1
 STORAGE_KEY = "shift_plus.storage"
 LEGACY_PUBLIC_STORAGE_KEY = "shift_plus"

@@ -6,9 +6,9 @@
 
 <p align="center"><a href="https://www.shiftplus.plus/"><strong>Website</strong></a> &nbsp;•&nbsp; <a href="https://play.google.com/store/apps/details?id=ie.shiftplus.app"><strong>Get Shift + on Google Play</strong></a> &nbsp;•&nbsp; <a href="docs/installation.md"><strong>Home Assistant installation guide</strong></a></p>
 
-**Shift +** brings the roster you manage in the Android app into Home Assistant. Pair once, let Android synchronize your active roster, annual leave and overtime, then see your schedule wherever Home Assistant is useful to you.
+**Shift +** helps regular 9-to-5 workers and rotating-shift workers stay ahead of work. Manage your calendar, leave and overtime in the Android app; use its work alarms and booking-on/off reminders; then pair once to bring the same schedule into Home Assistant.
 
-Shift + Premium is required for Android pairing and roster synchronization. Home Assistant stores a local synchronized copy and calculates its live schedule information locally. The public release is **v5.1.2**; this audit branch contains unreleased documentation and dashboard work and does not represent a published v5.1.3 release.
+Your Home Assistant dashboard becomes a clear companion view of today's duty, upcoming work, leave and overtime—useful at home, on a wall display or alongside your daily routines. Shift + Premium is required for Android pairing and roster synchronization. Home Assistant stores a local synchronized copy and calculates its live schedule information locally.
 
 ## Shift + Android app
 
