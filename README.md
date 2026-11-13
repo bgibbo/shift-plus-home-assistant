@@ -69,8 +69,6 @@ For normal storage-mode dashboards, the integration registers the card resource 
 - [Security model](docs/security.md)
 - [Report an issue](https://github.com/bgibbo/shift-plus-home-assistant/issues)
 
-The promotional artwork at the top is official Shift + artwork. Every other image above is a genuine product screenshot. Never include pairing QR codes, credentials, private URLs, device IDs, purchase information, personal roster data or private notes in screenshots or support requests.
-
 ## Development
 
 Contributor setup and validation commands are in [docs/development.md](docs/development.md). The project is maintained by **GIBBO** and licensed under the [MIT License](LICENSE).
