@@ -77,7 +77,7 @@ Storage-mode dashboards register the resource automatically. If it is not recogn
 
 1. Open **Settings → Dashboards → Resources**.
 2. Select **Add Resource**.
-3. Set URL to `/shift_plus/shift-plus-roster-card.js`.
+3. Set URL to `/shift_plus/shift-plus-roster-card.js?v=2026.11.13.2`.
 4. Set type to **JavaScript module**.
 5. Save and refresh the browser.
 

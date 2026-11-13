@@ -12,6 +12,7 @@ const ANDROID_CALENDAR = Object.freeze({
   today: "#C81E1E",
   overtime: "#20242A",
 });
+const ROSTER_CARD_VERSION = "2026.11.13.2";
 
 const PRESENTATION = Object.freeze({
   font_size: Object.freeze({ small: ".9", medium: "1", large: "1.12" }),
@@ -56,6 +57,19 @@ const coversMonth = (calendar, month) => {
   return calendar.range_start <= first && calendar.range_end >= last;
 };
 
+const formatOvertime = (entity) => {
+  if (!entity) return "Unavailable";
+  const value = Number(entity.state);
+  if (!Number.isFinite(value)) return String(entity.state ?? "Unavailable");
+  const unit = String(entity.attributes?.unit_of_measurement ?? "").toLowerCase();
+  if (["min", "minute", "minutes"].includes(unit)) {
+    const hours = value / 60;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(2)} h`;
+  }
+  if (["h", "hr", "hour", "hours"].includes(unit)) return `${value} h`;
+  return unit ? `${value} ${unit}` : String(value);
+};
+
 const HTMLElementBase = typeof HTMLElement === "undefined" ? class {} : HTMLElement;
 
 class ShiftPlusRosterCard extends HTMLElementBase {
@@ -79,6 +93,7 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     this._remoteCalendar = null;
     this._loadingMonth = null;
     this._unavailableMonths = new Set();
+    this._monthLoadErrors = new Map();
   }
 
   set hass(value) {
@@ -130,13 +145,21 @@ class ShiftPlusRosterCard extends HTMLElementBase {
         "GET", `/api/shift_plus/roster-card?month=${encodeURIComponent(month)}`,
       );
       if (
-        data?.card_data_version === 1 && data.month === month &&
+        data?.card_data_version === 1 && data.card_version === ROSTER_CARD_VERSION &&
+        data.month === month &&
         Array.isArray(data.days) && Array.isArray(data.events)
       ) {
         this._remoteCalendar = { ...data, available: true };
+        this._monthLoadErrors.delete(month);
+      } else {
+        this._monthLoadErrors.set(month, "The Home Assistant card and backend versions do not match.");
+        this._unavailableMonths.add(month);
       }
-    } catch (_error) {
-      // The regular bounded sensor data remains usable if a request cannot load.
+    } catch (error) {
+      this._monthLoadErrors.set(
+        month,
+        `Could not load this month from Home Assistant${error?.message ? `: ${error.message}` : "."}`,
+      );
       this._unavailableMonths.add(month);
     } finally {
       if (this._loadingMonth === month) this._loadingMonth = null;
@@ -177,6 +200,8 @@ class ShiftPlusRosterCard extends HTMLElementBase {
     const gridGap = presentationValue(
       "layout_density", this.config.layout_density, "comfortable",
     );
+    const activeMonth = monthKey(this.month);
+    const monthLoadError = this._monthLoadErrors.get(activeMonth);
     const cells = calendarCells(this.month.getFullYear(), this.month.getMonth())
       .map((date) => {
         const key = isoDate(date);
@@ -211,7 +236,7 @@ class ShiftPlusRosterCard extends HTMLElementBase {
       selectedEvents.some((item) => item.kind === "annual_leave") ? "Annual leave" : "",
       selectedEvents.some((item) => item.kind === "overtime") ? "Overtime" : "",
     ].filter(Boolean).join(" · ");
-    this.innerHTML = `<ha-card>
+    this.innerHTML = `<ha-card data-shift-plus-card-version="${ROSTER_CARD_VERSION}">
       <style>
         :host{--sp-blue:#45699b;--sp-android-today:${ANDROID_CALENDAR.today};--sp-annual-leave:${ANDROID_CALENDAR.annualLeave};--sp-overtime:${ANDROID_CALENDAR.overtime};--sp-font-scale:${fontScale};--sp-cell-height:${cellHeight};--sp-grid-gap:${gridGap};display:block}.wrap{padding:18px;color:var(--primary-text-color);font-size:calc(1rem * var(--sp-font-scale))}
         header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -232,6 +257,7 @@ class ShiftPlusRosterCard extends HTMLElementBase {
         .duty-N{background:${SHIFT_COLORS.N};color:#fff}.duty-R{background:${SHIFT_COLORS.R}}
         .overtime-overlay{position:absolute;z-index:-1;inset:0 0 0 50%;background:rgba(32,36,42,.38);border-radius:0 8px 8px 0}.leave-half{position:absolute;z-index:-1;top:0;bottom:0;width:50%;background:rgba(67,160,71,.16)}.leave-half.morning{left:0;border-radius:8px 0 0 8px}.leave-half.afternoon{right:0;border-radius:0 8px 8px 0}.annual-leave{position:absolute;top:3px;right:3px;color:var(--sp-annual-leave);--mdc-icon-size:14px}
         .detail{margin-top:14px;padding:12px;border-left:4px solid var(--sp-blue);background:var(--secondary-background-color);border-radius:8px}
+        .month-error{margin-top:12px;padding:10px;border-left:4px solid var(--error-color,#c81e1e);background:var(--secondary-background-color);border-radius:8px;color:var(--primary-text-color)}
         .empty{padding:18px;text-align:center;color:var(--secondary-text-color)}
         @media(max-width:520px){:host{--sp-cell-height:min(var(--sp-cell-height),48px);--sp-grid-gap:min(var(--sp-grid-gap),3px)}.wrap{padding:12px}.day{padding:4px}.summary{grid-template-columns:1fr}}
         @media(min-width:521px) and (max-width:800px){:host{--sp-cell-height:min(var(--sp-cell-height),52px)}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.metric.roster{grid-column:1 / -1}}
@@ -242,12 +268,13 @@ class ShiftPlusRosterCard extends HTMLElementBase {
       <div class="summary">
         <div class="metric roster"><span>Active roster</span><b title="${escapeHtml(roster?.state ?? "Unavailable")}">${escapeHtml(roster?.state ?? "Unavailable")}</b></div>
         <div class="metric"><span>Annual leave</span><b>${escapeHtml(leave ? `${leave.state} days` : "Unavailable")}</b></div>
-        <div class="metric"><span>Overtime</span><b>${escapeHtml(overtime ? `${overtime.state} h` : "Unavailable")}</b></div>
+        <div class="metric"><span>Overtime</span><b>${escapeHtml(formatOvertime(overtime))}</b></div>
       </div>
       ${calendar.available ? `<div class="month"><button data-nav="prev" aria-label="Previous month">‹</button><b>${escapeHtml(monthLabel)}</b><button data-nav="next" aria-label="Next month">›</button></div>
       <div class="week"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div class="grid">${cells}</div>
       <div class="detail"><b>${escapeHtml(this.selected)}</b><div>${detail}</div></div>`
       : '<div class="empty">Shift + calendar data is unavailable. Pair and sync the Android app, then try again.</div>'}
+      ${monthLoadError ? `<div class="month-error" role="alert">${escapeHtml(monthLoadError)}</div>` : ""}
       <div class="subtitle" style="margin-top:12px">Sync: ${escapeHtml(status?.attributes?.sync_status ?? "unavailable")}</div>
       </div></ha-card>`;
     this.querySelectorAll("[data-date]").forEach((button) => button.addEventListener("click", () => {
@@ -266,6 +293,8 @@ class ShiftPlusRosterCard extends HTMLElementBase {
   }
 }
 
+console.info(`[Shift +] roster card ${ROSTER_CARD_VERSION} loaded`);
+
 if (typeof customElements !== "undefined" && !customElements.get("shift-plus-roster-card")) {
   customElements.define("shift-plus-roster-card", ShiftPlusRosterCard);
   window.customCards = window.customCards || [];
@@ -280,12 +309,14 @@ if (typeof module !== "undefined") {
   module.exports = {
     SHIFT_COLORS,
     ANDROID_CALENDAR,
+    ROSTER_CARD_VERSION,
     PRESENTATION,
     ShiftPlusRosterCard,
     calendarCells,
     coversMonth,
     escapeHtml,
     isoDate,
+    formatOvertime,
     monthKey,
     presentationValue,
   };

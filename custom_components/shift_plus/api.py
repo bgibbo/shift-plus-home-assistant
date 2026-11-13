@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PROTOCOL_VERSION
 from .coordinator import make_qr
+from .frontend import ROSTER_CARD_VERSION
 from .security import (
     EntitlementError,
     entitlement_is_active,
@@ -137,6 +138,7 @@ class RosterCardView(HomeAssistantView):
             runtimes[0], start, start + timedelta(days=41)
         )
         data["month"] = month
+        data["card_version"] = ROSTER_CARD_VERSION
         return self.json(data)
 
 

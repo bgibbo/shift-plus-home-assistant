@@ -16,6 +16,7 @@ from homeassistant.const import EntityCategory, UnitOfTime
 
 from .coordinator import RuntimeData
 from .entity import ShiftPlusEntity
+from .frontend import ROSTER_CARD_VERSION
 from .roster.calculations import overtime_minutes
 
 
@@ -339,11 +340,17 @@ class CompatibilitySummarySensor(ShiftPlusEntity, SensorEntity):
                 "stored_records": len(self.runtime.store.sync.records),
             }
         if self.key == "calendar":
-            return _roster_card_data(self.runtime)
+            return {
+                **_roster_card_data(self.runtime),
+                "card_version": ROSTER_CARD_VERSION,
+            }
         if self.key == "annual_leave":
             totals = self.coordinator.data["leave_totals"]
             return {"taken": totals[0], "planned": totals[1], "remaining": totals[2]}
-        return {"entries": len(self.coordinator.data["overtime"])}
+        return {
+            "entries": len(self.coordinator.data["overtime"]),
+            "unit_of_measurement": "h",
+        }
 
 
 def _roster_card_data(runtime: RuntimeData) -> dict[str, Any]:

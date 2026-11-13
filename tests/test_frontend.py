@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,10 +12,16 @@ from custom_components.shift_plus.api import RosterCardView
 from custom_components.shift_plus.const import DOMAIN
 from custom_components.shift_plus.frontend import (
     FRONTEND_RESOURCE_URL,
+    FRONTEND_STATIC_URL,
     async_ensure_lovelace_resource,
     async_remove_frontend_resource,
 )
-from custom_components.shift_plus.sensor import _roster_card_data
+from custom_components.shift_plus.roster.engine import RosterEngine
+from custom_components.shift_plus.sensor import (
+    CompatibilitySummarySensor,
+    _roster_card_data,
+    roster_card_data_for_range,
+)
 
 
 def test_manifest_declares_lovelace_dependency() -> None:
@@ -67,7 +73,7 @@ async def test_frontend_script_is_served_from_the_integration(monkeypatch) -> No
     await frontend.async_setup_frontend(hass)
 
     assert len(registered) == 1
-    assert registered[0].url_path == FRONTEND_RESOURCE_URL
+    assert registered[0].url_path == FRONTEND_STATIC_URL
     assert Path(registered[0].path).name == "shift-plus-roster-card.js"
     assert registered[0].cache_headers is False
     assert callbacks == [(hass, frontend.async_ensure_lovelace_resource)]
@@ -96,6 +102,19 @@ async def test_frontend_resource_is_registered_once_and_removed() -> None:
     hass.data[DOMAIN] = {}
     await async_remove_frontend_resource(hass)
     assert resources.deleted == ["shift-plus-card"]
+
+
+@pytest.mark.asyncio
+async def test_legacy_frontend_resource_is_not_changed_or_owned(caplog) -> None:
+    resources = _Resources()
+    resources.items.append({"id": "user-resource", "url": FRONTEND_STATIC_URL})
+    hass = SimpleNamespace(data={DOMAIN: {}, "lovelace": {"resources": resources}})
+
+    await async_ensure_lovelace_resource(hass)
+
+    assert resources.created == []
+    assert "older URL" in caplog.text
+    assert "frontend_resource_id" not in hass.data[DOMAIN]
 
 
 def test_roster_card_contract_is_bounded_and_has_marker_only_data() -> None:
@@ -181,6 +200,7 @@ async def test_roster_card_month_endpoint_is_bounded_and_sanitized() -> None:
     data = json.loads(response.body)
 
     assert data["month"] == "2027-02"
+    assert data["card_version"] == frontend.ROSTER_CARD_VERSION
     assert data["range_start"] == "2027-02-01"
     assert data["range_end"] == "2027-03-14"
     assert len(data["days"]) == 42
@@ -198,3 +218,41 @@ async def test_roster_card_month_endpoint_rejects_invalid_month() -> None:
     response = await RosterCardView().get(request)
 
     assert response.status == 400
+
+
+def test_compatibility_overtime_summary_declares_hours() -> None:
+    sensor = object.__new__(CompatibilitySummarySensor)
+    sensor.key = "overtime"
+    sensor.coordinator = SimpleNamespace(data={"overtime": []})
+
+    assert sensor.extra_state_attributes == {
+        "entries": 0,
+        "unit_of_measurement": "h",
+    }
+
+
+def test_card_ranges_calculate_historical_and_future_core_non_core_duties() -> None:
+    class Store:
+        def records(self, kind):
+            return []
+
+    engine = RosterEngine()
+    for roster_id, unit_id, start in (
+        ("core", "unit-a", date(2025, 1, 27)),
+        ("non-core-2", "unit-b", date(2027, 2, 1)),
+    ):
+        coordinator = SimpleNamespace(
+            data={"roster_id": roster_id, "unit_id": unit_id},
+            engine=engine,
+            _configured=lambda duty: duty,
+        )
+        data = roster_card_data_for_range(
+            SimpleNamespace(coordinator=coordinator, store=Store()),
+            start,
+            start + timedelta(days=27),
+        )
+        assert len(data["days"]) == 28
+        assert data["days"][0] == {
+            "date": start.isoformat(),
+            "duty": engine.duty(start, roster_id, unit_id).code,
+        }

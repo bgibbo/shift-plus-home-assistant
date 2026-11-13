@@ -18,7 +18,7 @@ configuration before using the card:
 
 ```yaml
 resources:
-  - url: /shift_plus/shift-plus-roster-card.js
+  - url: /shift_plus/shift-plus-roster-card.js?v=2026.11.13.2
     type: module
 ```
 

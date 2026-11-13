@@ -12,7 +12,9 @@ from homeassistant.helpers.start import async_at_started
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-FRONTEND_RESOURCE_URL = f"/{DOMAIN}/shift-plus-roster-card.js"
+ROSTER_CARD_VERSION = "2026.11.13.2"
+FRONTEND_STATIC_URL = f"/{DOMAIN}/shift-plus-roster-card.js"
+FRONTEND_RESOURCE_URL = f"{FRONTEND_STATIC_URL}?v={ROSTER_CARD_VERSION}"
 _FRONTEND_RESOURCE = {"url": FRONTEND_RESOURCE_URL, "res_type": "module"}
 
 
@@ -20,7 +22,7 @@ async def async_setup_frontend(hass: Any) -> None:
     """Serve the card and register it with storage-mode Lovelace dashboards."""
     path = Path(__file__).parent / "frontend" / "shift-plus-roster-card.js"
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(FRONTEND_RESOURCE_URL, str(path), cache_headers=False)]
+        [StaticPathConfig(FRONTEND_STATIC_URL, str(path), cache_headers=False)]
     )
     async_at_started(hass, async_ensure_lovelace_resource)
 
@@ -43,11 +45,27 @@ async def async_ensure_lovelace_resource(hass: Any) -> None:
         (
             item
             for item in resources.async_items()
-            if item.get("url", "").split("?", 1)[0] == FRONTEND_RESOURCE_URL
+            if item.get("url") == FRONTEND_RESOURCE_URL
         ),
         None,
     )
     if existing is None:
+        legacy = next(
+            (
+                item
+                for item in resources.async_items()
+                if item.get("url", "").split("?", 1)[0] == FRONTEND_STATIC_URL
+            ),
+            None,
+        )
+        if legacy is not None:
+            _LOGGER.warning(
+                "Shift + roster card resource uses an older URL; leaving the "
+                "user-owned resource unchanged. Update it to %s to load the "
+                "current card.",
+                FRONTEND_RESOURCE_URL,
+            )
+            return
         existing = await resources.async_create_item(_FRONTEND_RESOURCE)
         hass.data[DOMAIN]["frontend_resource_id"] = existing.get("id")
 
